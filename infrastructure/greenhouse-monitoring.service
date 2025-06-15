@@ -1,0 +1,23 @@
+[Unit]
+Description=Greenhouse Monitoring System
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=lio
+Group=lio
+WorkingDirectory=/home/lio/github/greenhouse-monitoring/infrastructure
+ExecStart=/home/lio/github/greenhouse-monitoring/infrastructure/start_greenhouse_monitoring.sh --monitor
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/lio/github/greenhouse-monitoring/infrastructure/logs/greenhouse-service.log
+StandardError=append:/home/lio/github/greenhouse-monitoring/infrastructure/logs/greenhouse-service.log
+
+# Environment variables
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/home/lio
+Environment=INFLUX_TOKEN=auGnP6gpNj9iS8I87zVg3HBzR91h1VY13hSkl5ZuWTLy6Q0vnEqhZCrIxBxrg6LibNvjnM1Pxl5Bjt53UpLCww==
+
+[Install]
+WantedBy=multi-user.target

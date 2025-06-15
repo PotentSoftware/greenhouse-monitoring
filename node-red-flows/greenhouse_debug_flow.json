@@ -1,0 +1,149 @@
+[
+    {
+        "id": "debug_tab",
+        "type": "tab",
+        "label": "Debug & Test",
+        "disabled": false,
+        "info": "Debug and test flow for greenhouse integration"
+    },
+    {
+        "id": "test_beagleplay",
+        "type": "inject",
+        "z": "debug_tab",
+        "name": "Test BeaglePlay Data",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"temperature\": 24.5, \"humidity\": 65.2, \"pressure\": 1013.25, \"vpd\": 1.2}",
+        "payloadType": "json",
+        "x": 160,
+        "y": 60,
+        "wires": [["debug_beagle_raw"]]
+    },
+    {
+        "id": "test_thermal",
+        "type": "inject",
+        "z": "debug_tab",
+        "name": "Test Thermal Data",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"min_temp\": 22.1, \"max_temp\": 28.7, \"mean_temp\": 25.4, \"median_temp\": 25.2, \"range_temp\": 6.6, \"mode_temp\": 25.0, \"std_dev_temp\": 1.8}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 120,
+        "wires": [["debug_thermal_raw"]]
+    },
+    {
+        "id": "debug_beagle_raw",
+        "type": "debug",
+        "z": "debug_tab",
+        "name": "BeaglePlay Raw",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 380,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "debug_thermal_raw",
+        "type": "debug",
+        "z": "debug_tab",
+        "name": "Thermal Raw",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 370,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "test_gauge_direct",
+        "type": "inject",
+        "z": "debug_tab",
+        "name": "Test Gauge Direct",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "25.3",
+        "payloadType": "num",
+        "x": 160,
+        "y": 180,
+        "wires": [["test_gauge"]]
+    },
+    {
+        "id": "test_gauge",
+        "type": "ui_gauge",
+        "z": "debug_tab",
+        "name": "Test Gauge",
+        "group": "test_group",
+        "order": 1,
+        "width": 6,
+        "height": 4,
+        "gtype": "gage",
+        "title": "Test Temperature",
+        "label": "°C",
+        "format": "{{value}}",
+        "min": 15,
+        "max": 35,
+        "colors": ["#1f77b4","#2ca02c","#d62728"],
+        "seg1": 22,
+        "seg2": 28,
+        "className": "",
+        "x": 370,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "test_group",
+        "type": "ui_group",
+        "name": "Test Gauges",
+        "tab": "test_tab",
+        "order": 1,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "test_tab",
+        "type": "ui_tab",
+        "name": "Test",
+        "icon": "dashboard",
+        "order": 2,
+        "disabled": false,
+        "hidden": false
+    }
+]

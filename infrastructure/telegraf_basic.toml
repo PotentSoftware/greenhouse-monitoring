@@ -1,0 +1,50 @@
+# Basic Telegraf Configuration for System Monitoring
+[agent]
+  interval = "10s"
+  round_interval = true
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+  flush_jitter = "0s"
+  precision = ""
+  hostname = ""
+  omit_hostname = false
+
+# InfluxDB v2 output plugin
+[[outputs.influxdb_v2]]
+  urls = ["http://127.0.0.1:8086"]
+  token = "auGnP6gpNj9iS8I87zVg3HBzR91h1VY13hSkl5ZuWTLy6Q0vnEqhZCrIxBxrg6LibNvjnM1Pxl5Bjt53UpLCww=="
+  organization = "greenhouse"
+  bucket = "sensors"
+  timeout = "5s"
+
+# System CPU stats
+[[inputs.cpu]]
+  percpu = true
+  totalcpu = true
+  collect_cpu_time = false
+  report_active = false
+
+# Memory stats
+[[inputs.mem]]
+
+# Disk usage
+[[inputs.disk]]
+  ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay", "squashfs"]
+
+# System load
+[[inputs.system]]
+
+# Network stats
+[[inputs.net]]
+  ignore_protocol_stats = true
+
+# Mock sensor data for testing (simulated greenhouse sensors)
+[[inputs.exec]]
+  commands = [
+    "/home/lio/github/integration/infrastructure/mock_sensors.sh"
+  ]
+  name_override = "greenhouse_sensors"
+  data_format = "influx"
+  interval = "30s"

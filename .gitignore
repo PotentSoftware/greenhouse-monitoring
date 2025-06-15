@@ -1,0 +1,29 @@
+# Logs
+infrastructure/logs/
+*.log
+
+# Sensitive data
+infrastructure/influxdb_token.txt
+
+# Node-RED user directory
+.node-red/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Environment variables
+.env
+
+# Temporary files
+*.tmp
+*.temp

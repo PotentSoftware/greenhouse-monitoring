@@ -1,0 +1,261 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "greenhouse-real",
+    "title": "🌱 Greenhouse Real-Time Monitoring",
+    "tags": ["greenhouse", "real-time"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "🧪 pH Level",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"ph\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 5.5},
+                {"color": "green", "value": 6.0},
+                {"color": "green", "value": 7.5},
+                {"color": "yellow", "value": 8.0},
+                {"color": "red", "value": 8.5}
+              ]
+            },
+            "unit": "short",
+            "min": 4,
+            "max": 10,
+            "displayName": "pH"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "🌡️ Air Temperature",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"temperature\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "blue", "value": null},
+                {"color": "green", "value": 18},
+                {"color": "yellow", "value": 25},
+                {"color": "red", "value": 30}
+              ]
+            },
+            "unit": "celsius",
+            "displayName": "Temperature"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "💧 Humidity",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"humidity\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 30},
+                {"color": "green", "value": 40},
+                {"color": "green", "value": 70},
+                {"color": "yellow", "value": 80},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "displayName": "Humidity"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "🌿 VPD (Basic)",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"vpd\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.8},
+                {"color": "red", "value": 1.5}
+              ]
+            },
+            "unit": "pressurekpa",
+            "displayName": "VPD (kPa)"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "💻 CPU Usage",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 6},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"cpu\")\n  |> filter(fn: (r) => r[\"_field\"] == \"usage_user\")\n  |> filter(fn: (r) => r[\"cpu\"] == \"cpu0\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 80}
+              ]
+            },
+            "unit": "percent",
+            "displayName": "CPU %"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "🧠 Memory Usage",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 6, "x": 6, "y": 6},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"mem\")\n  |> filter(fn: (r) => r[\"_field\"] == \"used_percent\")\n  |> last()"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent",
+            "displayName": "Memory %"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "📈 pH Trends (Last Hour)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"ph\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "auto"
+            },
+            "unit": "short",
+            "displayName": "pH Level"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "🌡️ Environmental Conditions",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "queryType": "",
+            "refId": "A",
+            "datasource": {"type": "influxdb"},
+            "query": "from(bucket: \"sensors\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"beagleplay_sensors\")\n  |> filter(fn: (r) => r[\"_field\"] == \"temperature\" or r[\"_field\"] == \"humidity\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "temperature"},
+              "properties": [{"id": "unit", "value": "celsius"}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "humidity"},
+              "properties": [{"id": "unit", "value": "percent"}]
+            }
+          ]
+        }
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "timepicker": {},
+    "templating": {"list": []},
+    "annotations": {"list": []},
+    "refresh": "5s",
+    "schemaVersion": 30,
+    "version": 1,
+    "links": []
+  },
+  "overwrite": false
+}
