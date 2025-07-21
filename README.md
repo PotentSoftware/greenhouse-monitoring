@@ -5,209 +5,281 @@ A professional 24/7 greenhouse monitoring system integrating BeaglePlay pH/humid
 ## 🏗️ System Architecture
 
 ```
-BeagleConnect Freedom → BeaglePlay → Node-RED → InfluxDB → Grafana
-    (pH, RH, T_air)    ph_web_server     ↑         ↓        ↓
-                                         │    Time Series  Dashboard
-ESP32-S3 Thermal Camera ─────────────────┘      Data      
-(T_canopy, 5-sec updates)                                  
+BeagleConnect Freedom → BeaglePlay → Python Web Server (Port 8080)
+    (pH, RH, T_air)       ↓              ↓
+                    IIO Sensors    Integrated Dashboard
+                                         ↑
+ESP32-S3 Thermal Camera ─────────────────┘
+(T_canopy, real-time updates)                                  
 ```
 
+### Firmware Components
+- **BeagleConnect Freedom**: Custom Zephyr firmware with Greybus protocol
+- **ESP32-S3 Thermal Camera**: Standalone thermal imaging with web interface
+- **BeaglePlay**: Linux host running Python web server and Greybus gateway
+
 **Key Features:**
-- **Enhanced VPD Calculation** using actual canopy temperature
-- **24/7 Background Operation** with automatic service recovery
-- **Real-time Thermal Imaging** with 5-second updates
-- **Professional Dashboards** with historical data analysis
-- **Zero Recurring Costs** (self-hosted stack)
+- **Integrated Dashboard** with dark mode and landscape layout
+- **Real-time Sensor Data** from BeagleConnect Freedom
+- **Thermal Camera Integration** with fallback simulation
+- **24/7 Independent Operation** with systemd service
+- **VPD Calculation** using air temperature, humidity, and actual canopy temperature
+- **Automatic Startup** after power cycles
 
 ## 🚀 Quick Start
 
-### 1. Start Monitoring System
-```bash
-cd /home/lio/github/greenhouse-monitoring/infrastructure
+### Access Your Dashboards
+- **🌡️ Main Dashboard**: http://192.168.1.203:8080/ (Integrated sensor + thermal data)
+- **📷 Thermal Camera**: http://192.168.1.176/ (Direct camera interface)
+- **🔧 Node-RED Editor**: http://192.168.1.203:1880/ (Optional flow configuration)
 
-# Start in background (keeps running after closing terminal)
-./greenhouse_control.sh background
+### System Status
+The system runs independently on the BeaglePlay device with:
+- Python web server on port 8080
+- Automatic service startup via systemd
+- Thermal camera fallback for reliability
+- Real-time sensor data updates
 
-# Check status
-./greenhouse_control.sh status
+## 📊 Dashboard Features
 
-# Open all dashboards
-./greenhouse_control.sh open
-```
+### Integrated Python Dashboard (Port 8080)
+- **Dark Mode Interface** optimized for greenhouse environments
+- **Landscape Layout** for tablet/monitor viewing
+- **Real-time Timestamps** showing last data update
+- **BeagleConnect Freedom Data**: pH, Temperature, Humidity, VPD
+- **Thermal Camera Statistics**: Min, Max, Mean, Median, Range, Mode, Std Dev
+- **Connection Status**: Shows if thermal camera is connected or simulated
+- **Auto-refresh**: Updates every few seconds
 
-### 2. Access Your Dashboards
-- **🌡️ Thermal Camera**: http://192.168.1.176 (Real-time thermal view)
-- **📊 Grafana Dashboard**: http://localhost:3000 (admin/admin)
-- **🔧 Node-RED Editor**: http://localhost:1880 (Data flow configuration)
-- **💾 InfluxDB Admin**: http://localhost:8086 (Data storage)
+### BeagleConnect Freedom Sensors
+- **pH Sensor**: Soil/water pH monitoring
+- **Temperature Sensor**: Air temperature (°C)
+- **Humidity Sensor**: Relative humidity (%)
+- **VPD Calculation**: Vapor Pressure Deficit (kPa)
 
-## ⚙️ Background Service Features
-
-### Automatic Service Management
-- **Health Monitoring**: Checks all services every 30 seconds
-- **Auto-Recovery**: Restarts crashed services automatically  
-- **ESP32-S3 Monitoring**: Verifies thermal camera connectivity every 5 minutes
-- **Comprehensive Logging**: All activity logged with timestamps
-
-### Service Components
-- **InfluxDB OSS**: Time-series database for sensor data
-- **Grafana OSS**: Professional visualization dashboards
-- **Node-RED**: Data integration and flow management
-- **Telegraf**: System monitoring and data collection
-
-## 📊 Enhanced VPD Calculation
-
-Traditional VPD uses atmospheric temperature, but this system uses **actual canopy temperature** from thermal imaging:
-
-```
-Enhanced VPD = SVP(T_canopy) - AVP(T_air, RH)
-
-Where:
-- T_canopy: Real canopy temperature from thermal camera (ESP32-S3)
-- T_air: Atmospheric temperature (BeaglePlay sensor)  
-- RH: Relative humidity (BeaglePlay sensor)
-```
-
-**Benefits:**
-- More accurate plant stress assessment
-- Better irrigation timing decisions
-- Improved crop health monitoring
-
-## 🎛️ System Control Commands
-
-```bash
-# Basic Operations
-./greenhouse_control.sh start         # Start once
-./greenhouse_control.sh background    # Start in background 
-./greenhouse_control.sh monitor       # Start with continuous monitoring
-./greenhouse_control.sh stop          # Stop all services
-./greenhouse_control.sh status        # Check system status
-./greenhouse_control.sh logs          # View recent activity
-./greenhouse_control.sh open          # Open all web interfaces
-
-# Optional: System Service Installation
-./greenhouse_control.sh service-install   # Install as boot service
-./greenhouse_control.sh service-start     # Start boot service
-./greenhouse_control.sh service-stop      # Stop boot service
-```
+### ESP32-S3 Thermal Camera
+- **Temperature Statistics**: Comprehensive thermal analysis
+- **Fallback Mode**: Continues with simulated data if camera disconnected
+- **Multiple IP Support**: Tries multiple camera addresses for reliability
 
 ## 🔧 Hardware Configuration
 
 ### ESP32-S3 Thermal Camera
-- **Status**: ✅ ACTIVE at 192.168.1.176
-- **Update Rate**: 5 seconds (configurable)
-- **Resolution**: 32x24 thermal array
-- **I2C Pins**: SDA=8, SCL=9
-- **Data**: JSON API at `/thermal_data`
+- **Status**: Connected at http://192.168.1.176/
+- **Update Rate**: Real-time updates
+- **Resolution**: 32x24 thermal array  
+- **Data Endpoint**: `/thermal_data` (JSON API)
+- **Fallback**: Automatic simulation if disconnected
 
 ### BeaglePlay + BeagleConnect Freedom
-- **Sensors**: pH, atmospheric temperature, humidity
-- **Communication**: Wi-SUN wireless
-- **API**: Web server on BeaglePlay
-- **Status**: Ready for integration
+- **pH Sensor**: Soil/water monitoring via IIO device
+- **Temperature**: Air temperature sensor
+- **Humidity**: Relative humidity sensor  
+- **Connection**: I2C via IIO subsystem
+- **Update Rate**: Continuous monitoring
 
-## 🏗️ Project Structure
+## ⚙️ System Management
+
+### BeaglePlay Service Control
+The system runs as a systemd service for automatic startup and recovery:
+
+```bash
+# Check service status
+sudo systemctl status greenhouse-webserver.service
+
+# Start the service
+sudo systemctl start greenhouse-webserver.service
+
+# Stop the service  
+sudo systemctl stop greenhouse-webserver.service
+
+# Restart the service
+sudo systemctl restart greenhouse-webserver.service
+
+# View service logs
+sudo journalctl -u greenhouse-webserver.service -f
+```
+
+### Service Features
+- **Automatic Startup**: Starts automatically on boot
+- **Auto-Recovery**: Restarts if the service crashes
+- **Independent Operation**: Runs without laptop/USB connection
+- **Logging**: All activity logged to system journal
+
+## 🚀 Deployment Instructions
+
+### On BeaglePlay Device:
+1. **Copy files to BeaglePlay**:
+   ```bash
+   scp beagleplay_code/ph_web_server.py debian@192.168.1.203:/home/debian/beagleplay_code/
+   scp beagleplay_code/greenhouse-webserver.service debian@192.168.1.203:/home/debian/beagleplay_code/
+   ```
+
+2. **Install and enable service**:
+   ```bash
+   ssh debian@192.168.1.203
+   sudo cp /home/debian/beagleplay_code/greenhouse-webserver.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable greenhouse-webserver.service
+   sudo systemctl start greenhouse-webserver.service
+   ```
+
+3. **Verify installation**:
+   ```bash
+   sudo systemctl status greenhouse-webserver.service
+   curl http://localhost:8080/
+   ```
+
+## 📁 Project Structure
 
 ```
 /home/lio/github/greenhouse-monitoring/
-├── infrastructure/
-│   ├── greenhouse_control.sh           # 🎯 Main control script
-│   ├── start_greenhouse_monitoring.sh  # 🚀 Background service
-│   ├── greenhouse-monitoring.service   # 🔧 Systemd service
-│   ├── greenhouse_real_dashboard.json  # 📊 Grafana dashboard
-│   ├── telegraf_basic.toml             # 📈 Monitoring config
-│   ├── install_stack.sh                # 🛠️ Initial setup
-│   ├── setup_influxdb2.sh             # 💾 Database setup
-│   ├── find_devices.sh                 # 🔍 Network discovery
-│   ├── test_thermal_camera.sh          # 🧪 ESP32-S3 test
-│   └── logs/                           # 📁 System logs
-├── node-red-flows/
-│   └── greenhouse_integration_complete.json  # 🔗 Data integration
-├── beagleplay_code/
-│   ├── ph_web_server.py                # 🌊 pH monitoring (active)
-│   └── listen_wisun.py                 # 📡 Wireless receiver (active)
-└── README.md                           # 📚 This documentation
+├── beagleplay_code/                    # 🖥️ BeaglePlay server code
+│   ├── ph_web_server.py                # 🐍 Main Python web server (Port 8080)
+│   ├── greenhouse-webserver.service    # 🔧 Systemd service file
+│   ├── CLEANUP_NOTES.md               # 📝 System cleanup documentation
+│   └── ph_web_server_alt_port.py.backup # 🗄️ Backup of old server
+├── firmware/                           # 🔧 Firmware development
+│   ├── beagleconnect-freedom/          # 📦 Git submodule: BeagleConnect firmware
+│   └── tools/
+│       └── build-and-flash.sh          # 🛠️ Firmware build and flash script
+├── docs/
+│   └── firmware/
+│       └── beagleconnect-freedom-development.md # 📖 Firmware dev guide
+├── infrastructure/                     # 🏗️ System configuration
+├── node-red-flows/                     # 🔄 Node-RED flows (optional)
+│   └── greenhouse_dark_mode_flow.json
+├── FIRMWARE_INTEGRATION_PLAN.md        # 📋 Integration documentation
+└── README.md                          # 📚 This documentation
 ```
 
-## 🔍 Monitoring & Alerts
+## 🛠️ Troubleshooting
 
-### Data Collection
-- **Thermal**: 5-second updates from ESP32-S3 camera
-- **pH/Humidity**: Continuous from BeaglePlay sensors  
-- **System**: CPU, memory, network stats via Telegraf
-- **Storage**: All data in InfluxDB time-series format
-
-### Planned Extensions
-- **EC Monitoring**: Nutrient conductivity sensors
-- **Nutrient Temperature**: Temperature differential monitoring
-- **Alert System**: Email/SMS notifications for critical conditions
-- **Mobile Dashboard**: Responsive web interface
-
-## 🚨 Troubleshooting
-
-### System Status Issues
+### Service Issues
 ```bash
-# Check all components
-./greenhouse_control.sh status
+# Check if service is running
+sudo systemctl status greenhouse-webserver.service
 
-# View recent logs
-./greenhouse_control.sh logs
+# View service logs
+sudo journalctl -u greenhouse-webserver.service -f
 
-# Restart everything
-./greenhouse_control.sh stop
-./greenhouse_control.sh background
+# Restart service
+sudo systemctl restart greenhouse-webserver.service
 ```
 
-### ESP32-S3 Connection Issues
+### Thermal Camera Issues
+- Check camera power and network connection
+- Verify camera IP address: http://192.168.1.176/
+- System automatically falls back to simulated data if camera is disconnected
+- Dashboard shows "Simulated (Camera Disconnected)" when using fallback data
+
+### Sensor Data Issues
+- BeagleConnect Freedom sensors are accessed via Linux IIO subsystem
+- Check IIO devices: `ls /sys/bus/iio/devices/`
+- Service logs show sensor detection status
+
+## 🔧 Firmware Development
+
+### BeagleConnect Freedom Firmware
+The BeagleConnect Freedom runs custom Zephyr firmware with Greybus protocol support for wireless sensor communication.
+
+#### Quick Start
 ```bash
-# Test thermal camera
-./test_thermal_camera.sh
-
-# Check network connectivity
-ping 192.168.1.176
-curl http://192.168.1.176/thermal_data
+# Build and flash firmware (from project root)
+./firmware/tools/build-and-flash.sh
 ```
 
-### Service Recovery
-The background monitoring system automatically handles:
-- InfluxDB crashes → Auto-restart
-- Grafana failures → Auto-restart  
-- Node-RED issues → Auto-restart
-- Network interruptions → Reconnect on recovery
+#### Development Setup
+```bash
+# Initialize firmware submodule
+git submodule update --init --recursive
 
-## 📈 Performance Specs
+# Set up Zephyr environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install west
 
-### Data Throughput
-- **Thermal Data**: ~288 readings/hour (5-sec intervals)
-- **Sensor Data**: ~60 readings/hour (1-min intervals)
-- **System Metrics**: ~720 readings/hour (5-sec intervals)
-- **Storage**: ~1MB/day typical usage
+# Initialize west workspace
+west init -l firmware/beagleconnect-freedom
+west update
+```
+
+#### Custom Features
+- **I2C Protocol**: OPT3001 light sensor, HDC2010 temp/humidity sensor
+- **Greybus Integration**: Wireless communication with BeaglePlay
+- **SVC Protocol**: Service enumeration and power management
+- **Debug Logging**: Comprehensive debugging support
+
+#### Documentation
+- **Complete Guide**: [docs/firmware/beagleconnect-freedom-development.md](docs/firmware/beagleconnect-freedom-development.md)
+- **Integration Plan**: [FIRMWARE_INTEGRATION_PLAN.md](FIRMWARE_INTEGRATION_PLAN.md)
+
+### ESP32-S3 Thermal Camera
+Standalone thermal imaging system with web interface and dark mode.
+
+#### Features
+- **Real-time Thermal Imaging**: 32x24 pixel thermal sensor
+- **Web Interface**: http://192.168.1.176/ with dark theme
+- **Statistics**: Min, max, mean, median, range, mode, std dev
+- **Histogram**: 50-bin temperature distribution
+- **API Integration**: JSON endpoint for greenhouse system
+
+## 📈 System Performance
 
 ### Resource Usage
-- **CPU**: <5% average load
-- **Memory**: ~200MB total for all services
-- **Disk**: ~10GB/year for sensor data
-- **Network**: Minimal local traffic only
+- **CPU**: <2% average load on BeaglePlay
+- **Memory**: ~50MB for Python web server
+- **Network**: Local traffic only, minimal bandwidth
+- **Storage**: Lightweight logging, <10MB/day
 
-## 🎯 Next Steps
+### Update Rates
+- **Thermal Data**: Real-time from ESP32-S3 camera
+- **Sensor Data**: Continuous monitoring via IIO subsystem
+- **Dashboard**: Auto-refresh every few seconds
+- **Service**: Automatic restart on failure
 
-1. **✅ System is Ready** - Background monitoring active
-2. **🔗 Connect BeaglePlay** - Integrate pH sensor data  
-3. **📊 Customize Dashboard** - Adjust alerts and thresholds
-4. **🌡️ Add EC Sensors** - Extend with nutrient monitoring
-5. **📱 Mobile Access** - Configure external access (optional)
+## 🎯 System Status
 
-## 🏆 Status: Production Ready
+**🟢 ACTIVE COMPONENTS:**
+- **Main Dashboard**: http://192.168.1.203:8080/ ✅
+- **Thermal Camera**: http://192.168.1.176/ ✅  
+- **BeagleConnect Sensors**: pH, Temperature, Humidity ✅
+- **Systemd Service**: Auto-startup enabled ✅
+- **VPD Calculation**: Real-time computation ✅
 
-Your greenhouse monitoring system is now a professional-grade solution providing:
-- **Real-time monitoring** with sub-minute data resolution
-- **Automatic fault recovery** for 24/7 reliability  
-- **Scalable architecture** ready for additional sensors
-- **Enterprise dashboards** with historical analysis
-- **Zero cloud dependencies** for complete data ownership
+**🟡 OPTIONAL COMPONENTS:**
+- **Node-RED Editor**: http://192.168.1.203:1880/ (for customization)
+- **Node-RED Dashboard**: http://192.168.1.203:1880/ui (redundant, can disable)
 
-**System Status**: 🟢 **ACTIVE** - Background monitoring running  
-**ESP32-S3**: 🟢 **CONNECTED** - Thermal updates every 5 seconds  
-**Dashboards**: 🟢 **ACCESSIBLE** - Grafana ready at localhost:3000  
+**✅ SYSTEM READY** - Greenhouse monitoring system is operational and running independently on BeaglePlay!
 
-Happy growing! 🌱📊
+### VPD Calculation
+**Standard VPD** using air temperature and relative humidity from BeagleConnect Freedom:
+```
+VPD = SVP(T_air) × (1 - RH/100)
+
+Where:
+- T_air: Air temperature from BeagleConnect sensor (°C)
+- RH: Relative humidity from BeagleConnect sensor (%)
+- SVP: Saturated Vapor Pressure
+```
+
+**Enhanced VPD** using actual canopy temperature from thermal camera:
+```
+Enhanced VPD = SVP(T_canopy) - AVP(T_air, RH)
+
+Where:
+- T_canopy: Real canopy temperature from thermal camera (Max, Mean, Median, Mode)
+- T_air: Air temperature from BeagleConnect sensor (°C)  
+- RH: Relative humidity from BeagleConnect sensor (%)
+- SVP: Saturated Vapor Pressure at canopy temperature
+- AVP: Actual Vapor Pressure = SVP(T_air) × (RH/100)
+```
+
+**Benefits:**
+- **Standard VPD**: Basic plant stress assessment using air conditions
+- **Enhanced VPD**: More accurate plant stress using actual leaf/canopy temperature
+- **Multiple measurements**: Max, Mean, Median, Mode temperatures provide comprehensive analysis
+- **Real-time monitoring**: Continuous updates for precise irrigation timing
+
+Happy monitoring! 🌱📊

@@ -1,0 +1,14 @@
+[Unit]
+Description=Greenhouse Monitoring Web Server (Port 8080)
+After=network.target
+
+[Service]
+Type=simple
+User=debian
+WorkingDirectory=/home/debian
+ExecStart=/usr/bin/python3 /home/debian/ph_web_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

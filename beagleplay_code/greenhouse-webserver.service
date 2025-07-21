@@ -1,0 +1,16 @@
+[Unit]
+Description=Greenhouse Monitoring Web Server (Main Dashboard - Port 8080)
+After=network.target
+
+[Service]
+Type=simple
+User=debian
+WorkingDirectory=/home/debian/beagleplay_code
+ExecStart=/usr/bin/python3 /home/debian/beagleplay_code/ph_web_server.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

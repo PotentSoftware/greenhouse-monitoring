@@ -1,0 +1,344 @@
+[
+    {
+        "id": "greenhouse-tab",
+        "type": "tab",
+        "label": "Greenhouse Monitoring",
+        "disabled": false,
+        "info": "Integrated greenhouse monitoring dashboard with dark mode"
+    },
+    {
+        "id": "http-request-sensors",
+        "type": "http request",
+        "z": "greenhouse-tab",
+        "name": "Get Sensor Data",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://localhost:8080/api/sensors",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 310,
+        "y": 100,
+        "wires": [["parse-sensor-data"]]
+    },
+    {
+        "id": "inject-timer",
+        "type": "inject",
+        "z": "greenhouse-tab",
+        "name": "5 Second Timer",
+        "props": [{"p": "payload"}],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 120,
+        "y": 100,
+        "wires": [["http-request-sensors"]]
+    },
+    {
+        "id": "parse-sensor-data",
+        "type": "function",
+        "z": "greenhouse-tab",
+        "name": "Parse Sensor Data",
+        "func": "// Parse the sensor data and create separate outputs\nvar data = msg.payload;\n\n// Current timestamp\nvar now = new Date();\nvar timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();\n\n// Create separate messages for each sensor\nvar msgs = [];\n\n// pH Value\nmsgs[0] = {\n    payload: data.ph || 0,\n    topic: \"ph\",\n    timestamp: timestamp\n};\n\n// Temperature\nmsgs[1] = {\n    payload: data.temperature || 0,\n    topic: \"temperature\",\n    timestamp: timestamp\n};\n\n// Humidity\nmsgs[2] = {\n    payload: data.humidity || 0,\n    topic: \"humidity\",\n    timestamp: timestamp\n};\n\n// VPD\nmsgs[3] = {\n    payload: data.vpd || 0,\n    topic: \"vpd\",\n    timestamp: timestamp\n};\n\n// Thermal data\nmsgs[4] = {\n    payload: {\n        min: data.thermal_min_temp || 0,\n        max: data.thermal_max_temp || 0,\n        mean: data.thermal_mean_temp || 0,\n        median: data.thermal_median_temp || 0,\n        range: data.thermal_range_temp || 0,\n        mode: data.thermal_mode_temp || 0,\n        std_dev: data.thermal_std_dev_temp || 0\n    },\n    topic: \"thermal\",\n    timestamp: timestamp\n};\n\n// Status message\nmsgs[5] = {\n    payload: timestamp,\n    topic: \"status\"\n};\n\nreturn msgs;",
+        "outputs": 6,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 520,
+        "y": 100,
+        "wires": [["ph-gauge"], ["temp-gauge"], ["humidity-gauge"], ["vpd-gauge"], ["thermal-chart"], ["status-text"]]
+    },
+    {
+        "id": "status-text",
+        "type": "ui_text",
+        "z": "greenhouse-tab",
+        "group": "header-group",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "name": "Last Updated",
+        "label": "Data acquired on:",
+        "format": "{{msg.payload}}",
+        "layout": "row-center",
+        "className": "",
+        "x": 750,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "ph-gauge",
+        "type": "ui_gauge",
+        "z": "greenhouse-tab",
+        "name": "pH Value",
+        "group": "beagleconnect-group",
+        "order": 1,
+        "width": 3,
+        "height": 3,
+        "gtype": "gage",
+        "title": "pH Value",
+        "label": "pH",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 14,
+        "colors": ["#ca3838", "#e6e600", "#00ca00"],
+        "seg1": 6,
+        "seg2": 8,
+        "className": "",
+        "x": 750,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "temp-gauge",
+        "type": "ui_gauge",
+        "z": "greenhouse-tab",
+        "name": "Temperature",
+        "group": "beagleconnect-group",
+        "order": 2,
+        "width": 3,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Temperature",
+        "label": "°C",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 50,
+        "colors": ["#00b7ff", "#00ca00", "#ca3838"],
+        "seg1": 15,
+        "seg2": 35,
+        "className": "",
+        "x": 760,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "humidity-gauge",
+        "type": "ui_gauge",
+        "z": "greenhouse-tab",
+        "name": "Humidity",
+        "group": "beagleconnect-group",
+        "order": 3,
+        "width": 3,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Humidity",
+        "label": "%",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 100,
+        "colors": ["#ca3838", "#00ca00", "#00b7ff"],
+        "seg1": 30,
+        "seg2": 70,
+        "className": "",
+        "x": 760,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "vpd-gauge",
+        "type": "ui_gauge",
+        "z": "greenhouse-tab",
+        "name": "VPD",
+        "group": "beagleconnect-group",
+        "order": 4,
+        "width": 3,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Vapor Pressure Deficit",
+        "label": "kPa",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 3,
+        "colors": ["#00ca00", "#e6e600", "#ca3838"],
+        "seg1": 1,
+        "seg2": 2,
+        "className": "",
+        "x": 740,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "thermal-chart",
+        "type": "ui_chart",
+        "z": "greenhouse-tab",
+        "name": "Thermal Statistics",
+        "group": "thermal-group",
+        "order": 1,
+        "width": 12,
+        "height": 5,
+        "label": "Thermal Camera Statistics",
+        "chartType": "bar",
+        "legend": "true",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "No Data",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": 1,
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": ["#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728"],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 770,
+        "y": 300,
+        "wires": [[]]
+    },
+    {
+        "id": "thermal-parser",
+        "type": "function",
+        "z": "greenhouse-tab",
+        "name": "Format Thermal Data",
+        "func": "var thermal = msg.payload;\nvar timestamp = new Date();\n\n// Create multiple series for the chart\nvar msgs = [];\n\nmsgs.push({\n    payload: [{x: timestamp, y: thermal.min}],\n    topic: \"Min Temp\"\n});\n\nmsgs.push({\n    payload: [{x: timestamp, y: thermal.max}],\n    topic: \"Max Temp\"\n});\n\nmsgs.push({\n    payload: [{x: timestamp, y: thermal.mean}],\n    topic: \"Mean Temp\"\n});\n\nmsgs.push({\n    payload: [{x: timestamp, y: thermal.median}],\n    topic: \"Median Temp\"\n});\n\nreturn msgs;",
+        "outputs": 4,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 300,
+        "wires": [["thermal-chart"], ["thermal-chart"], ["thermal-chart"], ["thermal-chart"]]
+    },
+    {
+        "id": "dashboard-ui",
+        "type": "ui_base",
+        "theme": {
+            "name": "theme-dark",
+            "lightTheme": {
+                "default": "#0094CE",
+                "baseColor": "#0094CE",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": false
+            },
+            "darkTheme": {
+                "default": "#097479",
+                "baseColor": "#097479",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": true,
+                "reset": false
+            },
+            "customTheme": {
+                "name": "Untitled Theme 1",
+                "default": "#4B7930",
+                "baseColor": "#4B7930",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+            },
+            "themeState": {
+                "base-color": {
+                    "default": "#097479",
+                    "value": "#097479",
+                    "edited": false
+                },
+                "page-titlebar-backgroundColor": {
+                    "value": "#097479",
+                    "edited": false
+                },
+                "page-backgroundColor": {
+                    "value": "#111111",
+                    "edited": true
+                },
+                "page-sidebar-backgroundColor": {
+                    "value": "#333333",
+                    "edited": true
+                },
+                "group-textColor": {
+                    "value": "#0eb8c0",
+                    "edited": false
+                },
+                "group-borderColor": {
+                    "value": "#555555",
+                    "edited": true
+                },
+                "group-backgroundColor": {
+                    "value": "#222222",
+                    "edited": true
+                },
+                "widget-textColor": {
+                    "value": "#eeeeee",
+                    "edited": true
+                },
+                "widget-backgroundColor": {
+                    "value": "#097479",
+                    "edited": false
+                },
+                "widget-borderColor": {
+                    "value": "#333333",
+                    "edited": true
+                },
+                "base-font": {
+                    "value": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+                }
+            },
+            "angularTheme": {
+                "primary": "indigo",
+                "accents": "blue",
+                "warn": "red",
+                "background": "grey",
+                "palette": "dark"
+            }
+        },
+        "site": {
+            "name": "🌱 Greenhouse Monitoring Dashboard",
+            "hideToolbar": "false",
+            "allowSwipe": "false",
+            "lockMenu": "false",
+            "allowTempTheme": "true",
+            "dateFormat": "DD/MM/YYYY",
+            "sizes": {
+                "sx": 48,
+                "sy": 48,
+                "gx": 6,
+                "gy": 6,
+                "cx": 6,
+                "cy": 6,
+                "px": 0,
+                "py": 0
+            }
+        }
+    },
+    {
+        "id": "header-group",
+        "type": "ui_group",
+        "name": "Status",
+        "tab": "greenhouse-tab",
+        "order": 1,
+        "disp": true,
+        "width": 12,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "beagleconnect-group",
+        "type": "ui_group",
+        "name": "BeagleConnect Freedom Sensors",
+        "tab": "greenhouse-tab",
+        "order": 2,
+        "disp": true,
+        "width": 12,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "thermal-group",
+        "type": "ui_group",
+        "name": "Thermal Camera Statistics",
+        "tab": "greenhouse-tab",
+        "order": 3,
+        "disp": true,
+        "width": 12,
+        "collapse": false,
+        "className": ""
+    }
+]

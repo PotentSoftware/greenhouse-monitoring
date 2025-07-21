@@ -19,6 +19,17 @@ Thumbs.db
 
 # IDE files
 .vscode/
+
+# Firmware build artifacts
+firmware/beagleconnect-freedom/build/
+.venv/
+.west/
+modules/
+zephyr/
+
+# Zephyr SDK
+zephyr-sdk-*/
+
 .idea/
 
 # Environment variables

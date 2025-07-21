@@ -1,0 +1,3 @@
+[submodule "firmware/beagleconnect-freedom"]
+	path = firmware/beagleconnect-freedom
+	url = https://openbeagle.org/gsoc/greybus/cc1352-firmware.git
