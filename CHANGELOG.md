@@ -1,5 +1,49 @@
 # Greenhouse Monitoring System - Changelog
 
+## [2.2.0] - 2025-07-22 - Complete UI Restoration and Enhancement
+
+### 🎨 User Interface Improvements
+- **Fixed Encoding Issues**: Eliminated all strange character artifacts (Â with up-arrow)
+- **Help Button Restored**: Added comprehensive help modal with detailed sensor explanations
+- **Thermal Camera Button Repositioned**: Moved to optimal location under Enhanced VPD section
+- **Unicode Character Cleanup**: Replaced all problematic emoji/Unicode with clean text
+
+### 🔧 Technical UI Enhancements
+
+#### beagleplay_code/ph_web_server.py
+- **Fixed Degree Symbol Encoding**:
+  - Replaced Unicode degree symbols (°) with HTML entity (&deg;) throughout
+  - Applied to temperature sensor displays and all thermal camera statistics
+  
+- **Enhanced Help Modal System**:
+  - Added comprehensive help button with persistent modal
+  - Implemented JavaScript refresh control to prevent modal dismissal
+  - Replaced meta refresh with JavaScript timer for better UX
+  - Added detailed explanations for all sensor values and VPD calculations
+  
+- **Repositioned Thermal Camera Access**:
+  - Moved "View Camera Data" button from header to under Enhanced VPD section
+  - Added professional orange styling with hover effects
+  - Removed emoji characters for clean appearance
+  - Maintained new tab functionality for thermal camera interface
+  
+- **Improved Responsive Design**:
+  - Enhanced mobile layout for help modal
+  - Better button positioning on small screens
+  - Professional styling throughout
+
+### 📚 Documentation Updates
+- **Help Modal Content**: Comprehensive in-dashboard documentation
+- **User Experience**: Clean, professional interface without encoding artifacts
+- **Mobile Compatibility**: Responsive design for all screen sizes
+
+### ✅ User Validation
+- Camera button: "well placed and has the correct name"
+- Help information: "comprehensive and well formatted and stays visible until dismissed"
+- Overall feedback: "Good job!"
+
+---
+
 ## [2.1.0] - 2025-07-22 - BeagleConnect Freedom Sensor Integration Breakthrough
 
 ### 🎉 Major Features Added

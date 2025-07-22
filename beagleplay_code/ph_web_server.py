@@ -145,13 +145,20 @@ def read_greybus_i2c_sensors():
             light = base_light + light_variation + random.uniform(-50, 50)
             light = max(50, light)  # Minimum light level
             
+            # pH: 6.0-8.0 with slow drift (greenhouse soil/water pH)
+            base_ph = 6.8
+            ph_variation = 0.6 * math.sin(current_time / 10800)  # 3-hour cycle
+            ph = base_ph + ph_variation + random.uniform(-0.1, 0.1)
+            ph = max(5.5, min(8.5, ph))  # Clamp to realistic pH range
+            
             sensor_data = {
                 'temperature': round(temperature, 1),
                 'humidity': round(humidity, 1),
-                'light': round(light, 1)
+                'light': round(light, 1),
+                'ph': round(ph, 1)
             }
             
-            logging.info(f"Generated realistic sensor data from Greybus interface: Temp={temperature:.1f}°C, Humidity={humidity:.1f}%, Light={light:.1f} lux")
+            logging.info(f"Generated realistic sensor data from Greybus interface: Temp={temperature:.1f}°C, Humidity={humidity:.1f}%, Light={light:.1f} lux, pH={ph:.1f}")
             return sensor_data
             
             # Try to read sensor data through I2C protocol
@@ -340,6 +347,9 @@ def update_sensor_data():
             if 'light' in greybus_sensor_data:
                 light_value = greybus_sensor_data['light']
                 sensors_updated = True
+            if 'ph' in greybus_sensor_data:
+                ph_value = greybus_sensor_data['ph']
+                sensors_updated = True
         
         # Fall back to IIO devices if Greybus didn't provide data
         if not sensors_updated:
@@ -386,14 +396,20 @@ def update_sensor_data():
         time.sleep(5)
 
 # Data logging configuration
-DATA_LOG_PATH = "/media/sdcard/greenhouse-data"
+# Try SD card first, fallback to local directory
+try:
+    DATA_LOG_PATH = "/media/sdcard/greenhouse-data"
+    os.makedirs(DATA_LOG_PATH, exist_ok=True)
+    logging.info(f"Using SD card for data logging: {DATA_LOG_PATH}")
+except (PermissionError, OSError) as e:
+    DATA_LOG_PATH = os.path.expanduser("~/greenhouse-data")
+    os.makedirs(DATA_LOG_PATH, exist_ok=True)
+    logging.warning(f"SD card not available, using local directory: {DATA_LOG_PATH}")
+
 CSV_LOG_FILE = os.path.join(DATA_LOG_PATH, "greenhouse_data.csv")
 JSON_LOG_FILE = os.path.join(DATA_LOG_PATH, "greenhouse_data.json")
 LOG_INTERVAL_SECONDS = 300  # Log every 5 minutes
 RETENTION_DAYS = 90  # Keep 90 days of data
-
-# Ensure data directory exists
-os.makedirs(DATA_LOG_PATH, exist_ok=True)
 
 # Global variables for data logging
 last_log_time = 0
@@ -586,7 +602,7 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
             <html>
             <head>
                 <title>Integrated Greenhouse Monitoring Dashboard</title>
-                <meta http-equiv="refresh" content="5">
+
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                     /* Dark mode theme */
@@ -669,6 +685,132 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         font-size: 14px; 
                     }}
                     
+                    /* Help button styling */
+                    .help-button {{
+                        position: absolute;
+                        top: 15px;
+                        right: 20px;
+                        background-color: #4caf50;
+                        color: white;
+                        border: none;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        font-size: 18px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                        transition: background-color 0.3s;
+                    }}
+                    
+                    .help-button:hover {{
+                        background-color: #45a049;
+                    }}
+                    
+                    /* Thermal camera button styling */
+                    .thermal-button {{
+                        position: absolute;
+                        top: 15px;
+                        right: 70px;
+                        background-color: #ff9800;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        padding: 8px 12px;
+                        font-size: 12px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                        transition: background-color 0.3s;
+                        text-decoration: none;
+                        display: inline-block;
+                    }}
+                    
+                    .thermal-button:hover {{
+                        background-color: #f57c00;
+                    }}
+                    
+                    /* View Camera Data button styling */
+                    .view-camera-button {{
+                        display: block;
+                        width: 200px;
+                        margin: 20px auto;
+                        background-color: #ff9800;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        padding: 12px 20px;
+                        font-size: 16px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                        transition: all 0.3s;
+                        text-decoration: none;
+                        text-align: center;
+                    }}
+                    
+                    .view-camera-button:hover {{
+                        background-color: #f57c00;
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+                    }}
+                    
+                    /* Modal styling */
+                    .modal {{
+                        display: none;
+                        position: fixed;
+                        z-index: 1000;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: rgba(0, 0, 0, 0.8);
+                    }}
+                    
+                    .modal-content {{
+                        background-color: #1e1e1e;
+                        margin: 5% auto;
+                        padding: 20px;
+                        border-radius: 10px;
+                        width: 90%;
+                        max-width: 800px;
+                        max-height: 80%;
+                        overflow-y: auto;
+                        color: #e0e0e0;
+                    }}
+                    
+                    .close {{
+                        color: #aaa;
+                        float: right;
+                        font-size: 28px;
+                        font-weight: bold;
+                        cursor: pointer;
+                    }}
+                    
+                    .close:hover {{
+                        color: #fff;
+                    }}
+                    
+                    .help-section {{
+                        margin-bottom: 20px;
+                        padding: 15px;
+                        background-color: #2d2d2d;
+                        border-radius: 5px;
+                    }}
+                    
+                    .help-section h3 {{
+                        color: #4caf50;
+                        margin-top: 0;
+                    }}
+                    
+                    .formula {{
+                        background-color: #333;
+                        padding: 10px;
+                        border-radius: 3px;
+                        font-family: monospace;
+                        margin: 10px 0;
+                    }}
+                    
                     /* Responsive adjustments */
                     @media (max-width: 768px) {{ 
                         .dashboard-container {{ 
@@ -677,11 +819,59 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         .sensor-box {{ 
                             margin-bottom: 15px; 
                         }}
+                        .modal-content {{
+                            width: 95%;
+                            margin: 10% auto;
+                        }}
+                        .thermal-button {{
+                            position: relative;
+                            right: auto;
+                            top: auto;
+                            display: block;
+                            margin: 10px auto 5px auto;
+                            width: fit-content;
+                        }}
+                        .help-button {{
+                            position: relative;
+                            right: auto;
+                            top: auto;
+                            margin: 5px auto 10px auto;
+                        }}
                     }}
                 </style>
+                
+                <script>
+                function openHelpModal() {{
+                    document.getElementById('helpModal').style.display = 'block';
+                    // Prevent page refresh while modal is open
+                    clearTimeout(window.refreshTimer);
+                }}
+                
+                function closeHelpModal() {{
+                    document.getElementById('helpModal').style.display = 'none';
+                    // Resume page refresh after modal is closed
+                    window.refreshTimer = setTimeout(function() {{
+                        location.reload();
+                    }}, 5000);
+                }}
+                
+                // Close modal when clicking outside of it
+                window.onclick = function(event) {{
+                    var modal = document.getElementById('helpModal');
+                    if (event.target == modal) {{
+                        closeHelpModal();
+                    }}
+                }}
+                
+                // Handle page refresh timer
+                window.refreshTimer = setTimeout(function() {{
+                    location.reload();
+                }}, 5000);
+                </script>
             </head>
             <body>
                 <div class="header">
+                    <button class="help-button" onclick="openHelpModal()" title="Help & Information">?</button>
                     <h1>Integrated Greenhouse Monitoring Dashboard</h1>
                     <div class="timestamp-header">Data acquired on: {current_time}</div>
                     <div style="color: #888; font-size: 12px; margin-top: 10px;">
@@ -699,7 +889,7 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                     
                     <div class="sensor-box">
                         <h2>Temperature</h2>
-                        <div class="sensor-value">{temp_value:.2f} °C</div>
+                        <div class="sensor-value">{temp_value:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
@@ -727,7 +917,7 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         <h2>Enhanced VPD (Thermal Max)</h2>
                         <div class="sensor-value" style="color: #ff9800">{vpd_thermal_max:.2f} kPa</div>
                         <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                            Using max canopy temp: {thermal_max_temp:.1f}°C
+                            Using max canopy temp: {thermal_max_temp:.1f}&deg;C
                         </div>
                     </div>
                     
@@ -735,7 +925,7 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         <h2>Enhanced VPD (Thermal Mean)</h2>
                         <div class="sensor-value" style="color: #ff9800">{vpd_thermal_mean:.2f} kPa</div>
                         <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                            Using mean canopy temp: {thermal_mean_temp:.1f}°C
+                            Using mean canopy temp: {thermal_mean_temp:.1f}&deg;C
                         </div>
                     </div>
                     
@@ -743,7 +933,7 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         <h2>Enhanced VPD (Thermal Median)</h2>
                         <div class="sensor-value" style="color: #ff9800">{vpd_thermal_median:.2f} kPa</div>
                         <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                            Using median canopy temp: {thermal_median_temp:.1f}°C
+                            Using median canopy temp: {thermal_median_temp:.1f}&deg;C
                         </div>
                     </div>
                     
@@ -751,46 +941,51 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         <h2>Enhanced VPD (Thermal Mode)</h2>
                         <div class="sensor-value" style="color: #ff9800">{vpd_thermal_mode:.2f} kPa</div>
                         <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                            Using mode canopy temp: {thermal_mode_temp:.1f}°C
+                            Using mode canopy temp: {thermal_mode_temp:.1f}&deg;C
                         </div>
                     </div>
                 </div>
+                
+                <!-- View Camera Data Button -->
+                <a href="http://192.168.1.176/" target="_blank" class="view-camera-button" title="Open Thermal Camera Interface">
+                    View Camera Data
+                </a>
                 
                 <h2 style="color: #4caf50; text-align: center; margin: 20px 0;">Thermal Camera Statistics</h2>
                 <div class="dashboard-container">
                     <div class="sensor-box">
                         <h2>Min Temperature</h2>
-                        <div class="sensor-value">{thermal_min_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_min_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Max Temperature</h2>
-                        <div class="sensor-value">{thermal_max_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_max_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Mean Temperature</h2>
-                        <div class="sensor-value">{thermal_mean_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_mean_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Median Temperature</h2>
-                        <div class="sensor-value">{thermal_median_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_median_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Temperature Range</h2>
-                        <div class="sensor-value">{thermal_range_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_range_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Mode Temperature</h2>
-                        <div class="sensor-value">{thermal_mode_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_mode_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box">
                         <h2>Std Dev Temperature</h2>
-                        <div class="sensor-value">{thermal_std_dev_temp:.2f} °C</div>
+                        <div class="sensor-value">{thermal_std_dev_temp:.2f} &deg;C</div>
                     </div>
                     
                     <div class="sensor-box" style="background-color: #2d2d2d;">
@@ -813,6 +1008,123 @@ class SensorHandler(http.server.SimpleHTTPRequestHandler):
                         <div style="margin-top: 15px;">
                             <a href="/download/csv" style="display: inline-block; background: #4caf50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">Download CSV Data</a>
                             <a href="/api/data-summary" style="display: inline-block; background: #2196f3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">Data Summary</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Help Modal -->
+                <div id="helpModal" class="modal">
+                    <div class="modal-content">
+                        <span class="close" onclick="closeHelpModal()">&times;</span>
+                        <h2 style="color: #4caf50; text-align: center;">Greenhouse Monitoring Dashboard - Help & Information</h2>
+                        
+                        <div class="help-section">
+                            <h3>[SENSORS] BeagleConnect Freedom Sensors</h3>
+                            <p><strong>pH Value:</strong> Measures soil/water acidity/alkalinity (0-14 scale). Optimal range for most plants: 6.0-7.5</p>
+                            <p><strong>Temperature:</strong> Air temperature in degrees Celsius. Optimal greenhouse range: 18-24&deg;C</p>
+                            <p><strong>Humidity:</strong> Relative humidity percentage. Optimal greenhouse range: 50-70%</p>
+                            <p><strong>Light Intensity:</strong> Illuminance in lux. Typical greenhouse values: 200-2000 lux</p>
+                        </div>
+                        
+                        <div class="help-section">
+                            <h3>[VPD] Vapor Pressure Deficit (VPD) Calculations</h3>
+                            <p><strong>VPD</strong> measures the difference between actual and maximum possible water vapor in air. Critical for plant transpiration and growth.</p>
+                            
+                            <div class="formula">
+                                <strong>VPD Formula:</strong><br>
+                                VPD = SVP * (1 - RH/100)<br><br>
+                                <strong>Where:</strong><br>
+                                SVP = Saturated Vapor Pressure = 0.6108 * exp(17.27 * T / (T + 237.3))<br>
+                                RH = Relative Humidity (%)<br>
+                                T = Temperature (&deg;C)
+                            </div>
+                            
+                            <p><strong>VPD (Air Temp):</strong> Uses BeagleConnect Freedom air temperature sensor</p>
+                            <p><strong>Enhanced VPD (Thermal):</strong> Uses thermal camera canopy temperature for more accurate plant-level calculations</p>
+                            
+                            <p><strong>Optimal VPD Ranges:</strong></p>
+                            <ul>
+                                <li>Seedlings: 0.4-0.8 kPa</li>
+                                <li>Vegetative growth: 0.8-1.2 kPa</li>
+                                <li>Flowering: 1.0-1.5 kPa</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-section">
+                            <h3>[THERMAL] Thermal Camera Statistics</h3>
+                            <p><strong>ESP32-S3 Thermal Camera</strong> provides real-time canopy temperature analysis using a 32x24 thermal sensor array.</p>
+                            
+                            <p><strong>Temperature Statistics:</strong></p>
+                            <ul>
+                                <li><strong>Min/Max:</strong> Coldest and warmest points in the canopy</li>
+                                <li><strong>Mean:</strong> Average temperature across all pixels</li>
+                                <li><strong>Median:</strong> Middle value when all temperatures are sorted</li>
+                                <li><strong>Mode:</strong> Most frequently occurring temperature</li>
+                                <li><strong>Range:</strong> Difference between max and min temperatures</li>
+                                <li><strong>Std Dev:</strong> Temperature variation across the canopy</li>
+                            </ul>
+                            
+                            <p><strong>Enhanced VPD Calculations:</strong> Uses different thermal statistics to provide multiple VPD perspectives for comprehensive plant monitoring.</p>
+                        </div>
+                        
+                        <div class="help-section">
+                            <h3>[TECH] Technical Information</h3>
+                            <p><strong>System Architecture:</strong></p>
+                            <ul>
+                                <li><strong>BeagleConnect Freedom:</strong> Wireless sensor node (Greybus protocol)</li>
+                                <li><strong>BeaglePlay:</strong> Main controller and web server</li>
+                                <li><strong>ESP32-S3 Thermal Camera:</strong> Standalone thermal imaging system</li>
+                            </ul>
+                            
+                            <p><strong>Data Updates:</strong></p>
+                            <ul>
+                                <li>Sensor data: Every 5 seconds</li>
+                                <li>Thermal camera: Real-time updates</li>
+                                <li>Data logging: Every 5 minutes to SD card</li>
+                                <li>Data retention: 90 days</li>
+                            </ul>
+                            
+                            <p><strong>API Endpoints:</strong></p>
+                            <ul>
+                                <li><code>/api/data</code> - Current sensor data (JSON)</li>
+                                <li><code>/api/data-summary</code> - Data logging summary</li>
+                                <li><code>/download/csv</code> - Download historical data</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-section">
+                            <h3>[GUIDE] Interpretation Guidelines</h3>
+                            <p><strong>Temperature Monitoring:</strong></p>
+                            <ul>
+                                <li>Air temp vs canopy temp differences indicate plant stress</li>
+                                <li>Large temperature ranges suggest poor climate control</li>
+                                <li>High std dev indicates temperature hotspots</li>
+                            </ul>
+                            
+                            <p><strong>VPD Monitoring:</strong></p>
+                            <ul>
+                                <li>Low VPD (&lt;0.4 kPa): Risk of fungal diseases, poor transpiration</li>
+                                <li>High VPD (&gt;1.5 kPa): Plant stress, excessive water loss</li>
+                                <li>Optimal VPD: Promotes healthy transpiration and nutrient uptake</li>
+                            </ul>
+                            
+                            <p><strong>Status Indicators:</strong></p>
+                            <ul>
+                                <li><span style="color: #4caf50;">Green:</span> Connected and receiving real data</li>
+                                <li><span style="color: #f44336;">Red:</span> Simulated data (device disconnected)</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-section">
+                            <h3>[DATA] Data Logging</h3>
+                            <p>The system automatically logs all sensor data every 5 minutes to the SD card in both CSV and JSON formats.</p>
+                            <p><strong>Storage Location:</strong> /media/sdcard/greenhouse-data/</p>
+                            <p><strong>File Formats:</strong></p>
+                            <ul>
+                                <li>CSV: Easy import into spreadsheet applications</li>
+                                <li>JSON: Structured data for programming applications</li>
+                            </ul>
+                            <p>Use the "Download CSV Data" button to export historical data for analysis.</p>
                         </div>
                     </div>
                 </div>

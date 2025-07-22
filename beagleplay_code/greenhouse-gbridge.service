@@ -1,0 +1,26 @@
+[Unit]
+Description=Greenhouse BeagleConnect Greybus Bridge Service
+After=network-online.target beagleconnect-gateway.service
+Wants=network-online.target
+Conflicts=beagleconnect-gateway.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/tmp
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/sbin/gbridge -I 2001:db8::1 -P 9998
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=HOME=/root
+
+# Service management
+KillMode=process
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
