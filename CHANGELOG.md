@@ -1,5 +1,90 @@
 # Greenhouse Monitoring System - Changelog
 
+## [3.0.0] - 2025-07-26 - 🎉 Feather S3[D] Precision Sensors Integration Complete
+
+### 🚀 MAJOR SYSTEM UPGRADE - Production Ready
+
+#### ✅ **Dual Precision Sensors Integration**
+- **SHT45 Sensor**: High-precision temperature and humidity monitoring
+- **HDC3022 Sensor**: Secondary precision sensor for data validation and averaging
+- **Intelligent Data Processing**: Automatic averaging and individual sensor access
+- **Enhanced Accuracy**: Dual sensor validation for improved measurement reliability
+
+#### 🧮 **Advanced VPD Calculation System**
+- **Multiple VPD Types**: Air VPD, Canopy VPD, Thermal VPD, Enhanced VPD
+- **Scientific Accuracy**: Tetens Equation (Magnus-Tetens formula) for SVP calculations
+- **9 VPD Combinations**: Max/Avg/Modal thermal temperature × SHT45/HDC3022/Average humidity
+- **Clear Labeling**: Explicit sensor usage descriptions (e.g., "VPD (Max + SHT45)")
+- **Plot Integration**: Three dedicated VPD time-series plots with distinct calculations
+
+#### 🔬 **Thermal Camera Data Quality Enhancement**
+- **Negative Pixel Filtering**: Automatic detection and exclusion of faulty pixels (< 0°C)
+- **Raw Pixel Processing**: Direct processing of thermal camera pixel data
+- **Statistical Accuracy**: Clean min/max/mean/mode calculations excluding negative values
+- **Quality Monitoring**: Real-time display of filtering status and pixel counts
+- **Dual Data Sources**: Raw pixel data with fallback to pre-calculated statistics
+
+#### 🎨 **Professional Dashboard Improvements**
+- **Help Modal Persistence**: Fixed disappearing modal issue with proper event handling
+- **Character Encoding**: Replaced Unicode symbols with HTML entities for clean display
+- **Scientific Documentation**: Added Tetens Equation attribution and detailed formulas
+- **Enhanced VPD Labeling**: Clear correspondence between dashboard and plot VPD values
+- **Data Source Display**: Shows thermal data source (Raw Pixels vs Pre-calculated)
+
+#### 🛠️ **Robust System Management**
+- **Automatic Startup Service**: Complete systemd integration with `precision-sensors.service`
+- **Port Conflict Resolution**: Intelligent cleanup of hanging processes on port 8080
+- **Smart Startup Script**: `start_precision_server.sh` with comprehensive error handling
+- **Installation Automation**: `install_service.sh` for one-command deployment
+- **Process Management**: Clean startup/shutdown with proper signal handling
+
+#### 📊 **Enhanced Data Processing**
+- **Thermal Statistics Recalculation**: Real-time processing from raw pixel data
+- **Negative Value Detection**: Comprehensive logging of filtered pixels
+- **Data Integrity Monitoring**: Quality status display on dashboard
+- **Fallback Logic**: Robust handling of thermal camera communication issues
+
+#### 🔧 **Technical Implementation**
+- **New Server**: `precision_sensors_server.py` (67KB) - Complete rewrite for precision sensors
+- **Service Files**: Complete systemd integration with auto-restart capabilities
+- **CircuitPython Firmware**: Full Feather S3[D] firmware with dual sensor support
+- **C++ Alternative**: PlatformIO-based firmware option for advanced users
+
+#### 📁 **Project Structure**
+- **beagleplay_code_v2/**: New precision sensors server implementation
+- **feather-s3d-circuitpython/**: Complete CircuitPython firmware and utilities
+- **feather-s3d-firmware/**: Alternative C++ firmware with PlatformIO
+- **Comprehensive Documentation**: Deployment guides, setup instructions, and API documentation
+
+#### 🌐 **Production Deployment**
+- **BeaglePlay Integration**: Running on 192.168.1.203:8080
+- **Service Status**: Fully operational with PID monitoring
+- **Automatic Recovery**: Service restarts on failure with 15-second intervals
+- **Comprehensive Logging**: Detailed troubleshooting and monitoring information
+
+#### 🎯 **User Benefits**
+1. **Higher Accuracy**: Dual sensor validation and thermal pixel filtering
+2. **Better VPD Insights**: Multiple calculation methods for comprehensive plant monitoring
+3. **Professional Interface**: Clean, scientific presentation with detailed help system
+4. **Reliable Operation**: Robust service management with automatic recovery
+5. **Transparent Processing**: Clear indication of data sources and quality status
+
+### 🗂️ **Files Added/Modified**
+- **NEW**: `beagleplay_code_v2/precision_sensors_server.py` - Main precision sensors server
+- **NEW**: `beagleplay_code_v2/start_precision_server.sh` - Smart startup script
+- **NEW**: `beagleplay_code_v2/precision-sensors.service` - Systemd service configuration
+- **NEW**: `beagleplay_code_v2/install_service.sh` - Automated installation script
+- **NEW**: `feather-s3d-circuitpython/` - Complete CircuitPython firmware directory
+- **NEW**: `feather-s3d-firmware/` - Alternative C++ firmware with PlatformIO
+- **NEW**: `FEATHER_S3D_INTEGRATION_COMPLETE.md` - Comprehensive project summary
+- **UPDATED**: `README.md` - Updated system architecture and feature descriptions
+- **REMOVED**: Redundant test files and incomplete implementations
+
+### 🏆 **Achievement Summary**
+**SYSTEM STATUS**: 🟢 **FULLY OPERATIONAL - PRODUCTION READY**
+
+This release represents a complete transformation of the greenhouse monitoring system, elevating it from a prototype to a professional-grade precision monitoring solution with dual sensor validation, advanced VPD calculations, and robust thermal data processing.
+
 ## [2.2.0] - 2025-07-22 - Complete UI Restoration and Enhancement
 
 ### 🎨 User Interface Improvements
