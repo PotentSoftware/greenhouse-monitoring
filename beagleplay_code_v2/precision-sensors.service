@@ -1,0 +1,27 @@
+[Unit]
+Description=Precision Sensors Server v3.0 with Port Cleanup
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=debian
+WorkingDirectory=/home/debian
+ExecStart=/home/debian/start_precision_server.sh
+ExecStop=/bin/bash -c 'pkill -f precision_sensors_server.py'
+Restart=always
+RestartSec=15
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONPATH=/home/debian
+Environment=LOG_LEVEL=INFO
+
+# Security settings
+PrivateTmp=false
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target

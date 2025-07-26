@@ -1,39 +1,41 @@
 # 🌱 Greenhouse IoT Monitoring System
 
-✅ **FULLY OPERATIONAL** - A professional 24/7 greenhouse monitoring system integrating BeagleConnect Freedom wireless sensors with ESP32-S3 thermal imaging for enhanced plant health management.
+✅ **FULLY OPERATIONAL** - A professional 24/7 greenhouse monitoring system integrating dual precision sensors (SHT45 + HDC3022) with ESP32-S3 thermal imaging for enhanced plant health management.
 
-🎉 **BREAKTHROUGH ACHIEVED** (July 22, 2025): BeagleConnect Freedom sensors now providing real, changing data via Greybus protocol integration!
+🎉 **FEATHER S3[D] INTEGRATION COMPLETE** (July 26, 2025): Dual precision sensors (SHT45 + HDC3022) now providing high-accuracy temperature and humidity data with enhanced VPD calculations!
 
-🎨 **UI RESTORATION COMPLETE** (July 22, 2025): Dashboard fully restored with comprehensive help system, clean encoding, and optimized user experience!
+🔬 **THERMAL FILTERING IMPLEMENTED** (July 26, 2025): Advanced negative pixel filtering ensures accurate thermal camera statistics by excluding faulty sensor pixels!
+
+🎨 **PROFESSIONAL DASHBOARD** (July 26, 2025): Enhanced UI with comprehensive help system, scientific formula documentation, and clear VPD labeling!
 
 ## 🏗️ System Architecture
 
 ```
-BeagleConnect Freedom → BeaglePlay → Python Web Server (Port 8080)
-    (pH, RH, T_air)       ↓              ↓
-                    IIO Sensors    Integrated Dashboard
+Feather S3[D] Sensors → BeaglePlay → Precision Sensors Server (Port 8080)
+  (SHT45 + HDC3022)       ↓              ↓
+   T_air, RH (dual)    USB Serial    Professional Dashboard
                                          ↑
 ESP32-S3 Thermal Camera ─────────────────┘
-(T_canopy, real-time updates)                                  
+(T_canopy, filtered pixels, real-time)                                  
 ```
 
-### Firmware Components
-- **BeagleConnect Freedom**: Custom Zephyr firmware with Greybus protocol
-- **ESP32-S3 Thermal Camera**: Standalone thermal imaging with web interface
-- **BeaglePlay**: Linux host running Python web server and Greybus gateway
+### System Components
+- **Feather S3[D]**: Dual precision sensors (SHT45 + HDC3022) with CircuitPython firmware
+- **ESP32-S3 Thermal Camera**: Standalone thermal imaging with negative pixel filtering
+- **BeaglePlay**: Linux host running precision sensors server with enhanced VPD calculations
 
 **Key Features:**
-- ✅ **Integrated Dashboard** with dark mode and landscape layout
-- ✅ **Real-time Sensor Data** from BeagleConnect Freedom (WORKING!)
-- ✅ **Greybus Protocol Integration** for wireless sensor communication
-- ✅ **Thermal Camera Integration** with ESP32-S3 real-time data
-- ✅ **24/7 Independent Operation** with systemd service
-- ✅ **Enhanced VPD Calculation** using air temperature, humidity, and actual canopy temperature
-- ✅ **Automatic Startup** after power cycles
-- ✅ **Professional UI** with comprehensive help system and clean encoding
+- ✅ **Dual Precision Sensors** - SHT45 and HDC3022 for high-accuracy measurements
+- ✅ **Enhanced VPD Calculations** - Multiple VPD types (Air, Canopy, Thermal, Enhanced)
+- ✅ **Thermal Pixel Filtering** - Automatic detection and exclusion of faulty pixels
+- ✅ **Professional Dashboard** - Dark theme with comprehensive help system
+- ✅ **Scientific Accuracy** - Tetens Equation (Magnus-Tetens formula) for SVP calculations
+- ✅ **Clear VPD Labeling** - Explicit sensor usage and calculation method descriptions
+- ✅ **Robust Service Management** - Automatic startup with port conflict resolution
+- ✅ **Real-time Data Quality** - Live monitoring of sensor and pixel filtering status
 - ✅ **Mobile Responsive** design for all screen sizes
-- ✅ **Direct Thermal Camera Access** with optimally positioned button
-- ✅ **Live Data Updates** every 5 seconds with realistic sensor variations
+- ✅ **Comprehensive Logging** - Detailed troubleshooting and monitoring information
+- ✅ **Production Ready** - 24/7 operation with automatic recovery
 
 ## 🚀 Quick Start
 

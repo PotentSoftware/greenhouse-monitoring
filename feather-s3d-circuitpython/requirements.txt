@@ -1,0 +1,36 @@
+# CircuitPython Library Requirements for Feather S3[D] Precision Sensors
+# 
+# These libraries need to be copied to the CIRCUITPY/lib/ directory
+# Download from: https://circuitpython.org/libraries
+#
+# Required libraries for dual sensor operation:
+
+# Core sensor libraries
+adafruit_sht4x.mpy              # SHT45 temperature/humidity sensor
+adafruit_hdc302x.mpy            # HDC3022 temperature/humidity sensor
+
+# Supporting libraries
+adafruit_bus_device/            # I2C/SPI bus device support
+adafruit_register/              # Register access utilities
+
+# Optional libraries for future HTTP server functionality
+adafruit_requests.mpy           # HTTP requests (for WiFi mode)
+adafruit_connection_manager.mpy # Connection management
+
+# Installation Instructions:
+# 1. Download CircuitPython Library Bundle from:
+#    https://circuitpython.org/libraries
+# 
+# 2. Extract the bundle and copy these files/folders to CIRCUITPY/lib/:
+#    - adafruit_sht4x.mpy
+#    - adafruit_hdc302x.mpy
+#    - adafruit_bus_device/ (entire folder)
+#    - adafruit_register/ (entire folder)
+#
+# 3. Copy code.py to the root of CIRCUITPY drive
+#
+# 4. Connect sensors:
+#    - SHT45 to I2C1 (SCL1/SDA1 pins or STEMMA QT)
+#    - HDC3022 to I2C2 (SCL2/SDA2 pins or STEMMA QT)
+#
+# 5. Open serial monitor to see sensor readings

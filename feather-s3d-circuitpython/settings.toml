@@ -1,0 +1,16 @@
+# WiFi Configuration for Feather S3[D]
+# Copy this file to /media/lio/CIRCUITPY/settings.toml
+
+# WiFi Network Settings
+CIRCUITPY_WIFI_SSID = "YourWiFiNetwork"
+CIRCUITPY_WIFI_PASSWORD = "YourWiFiPassword"
+
+# Server Configuration  
+SERVER_PORT = 8080
+SENSOR_READ_INTERVAL = 5
+
+# Optional: Static IP Configuration
+# CIRCUITPY_WIFI_IP = "192.168.1.100"
+# CIRCUITPY_WIFI_GATEWAY = "192.168.1.1"
+# CIRCUITPY_WIFI_SUBNET = "255.255.255.0"
+# CIRCUITPY_WIFI_DNS = "8.8.8.8"
