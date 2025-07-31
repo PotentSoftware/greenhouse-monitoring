@@ -1,285 +1,186 @@
-# tCam-mini Rev 4 Integration Guide
+# tCam-Mini-Rev 4 Integration with Advanced Leaf Analysis
 
 ## Overview
-This document outlines the integration of the tCam-mini Rev 4 thermal camera with FLIR Lepton 3.5 sensor into the greenhouse monitoring system.
 
-## Hardware Specifications
+This directory contains the implementation for replacing the current ESP32-S3 + MLX90640 thermal camera with a tCam-Mini-Rev 4 + FLIR Lepton 3.5 system that provides:
 
-### tCam-mini Rev 4
-- **Product**: https://groupgets.com/products/tcam-mini-rev4-wireless-streaming-thermal-camera-board
-- **Thermal Sensor**: FLIR Lepton 3.5
-- **Resolution**: 160x120 pixels (vs 32x24 on MLX90640)
-- **Temperature Range**: -10°C to +400°C
-- **Accuracy**: ±5°C or ±5% (whichever is greater)
-- **Connectivity**: WiFi 802.11b/g/n
-- **External Antenna**: Improved range and reliability
+- **20x Resolution Improvement**: From 32×24 to 160×120 pixels
+- **Professional Thermal Sensor**: FLIR Lepton 3.5 vs consumer MLX90640  
+- **Advanced Leaf Analysis**: Individual leaf identification and temperature statistics
+- **Population-Level Analytics**: Statistics across all detected leaves
+- **Enhanced VPD Calculations**: Using leaf-specific temperature data
 
-### Key Improvements over ESP32-S3 + MLX90640
-1. **Higher Resolution**: 160x120 vs 32x24 pixels (20x improvement)
-2. **Better Accuracy**: Professional FLIR sensor vs consumer MLX90640
-3. **Wider Temperature Range**: -10°C to +400°C vs -40°C to +300°C
-4. **Enhanced Connectivity**: External antenna for better WiFi performance
-5. **Professional Grade**: Industrial thermal imaging vs hobbyist sensor
+## Quick Start
 
-## Software Integration
+### 1. Hardware Setup
+- Connect tCam-Mini-Rev 4 to USB hub and power up
+- Verify LED indicators show normal operation
+- Install tCam desktop software for initial testing
 
-### Expected API Differences
-The tCam-mini Rev 4 likely uses different API endpoints and data formats compared to our current ESP32-S3 implementation:
+### 2. Basic Testing
+```bash
+cd /home/lio/github/greenhouse-monitoring/tcam-mini-integration/scripts/
 
-#### Current ESP32-S3 API (to be replaced):
+# Test basic communication with tCam-Mini
+python3 tcam_basic_test.py
+
+# Capture and analyze thermal images  
+python3 tcam_image_capture.py
+
+# Test leaf detection algorithms
+python3 leaf_detection_prototype.py
 ```
-GET /thermal_data
+
+### 3. Development Environment
+```bash
+# Install required packages
+pip install opencv-python numpy scipy scikit-image requests pillow matplotlib
+```
+
+## Project Structure
+
+```
+tcam-mini-integration/
+├── README.md                     # This file
+├── IMPLEMENTATION_PLAN.md        # Detailed implementation plan
+├── GETTING_STARTED.md           # Step-by-step getting started guide
+├── scripts/                     # Development and testing scripts
+│   ├── tcam_basic_test.py       # Basic tCam-Mini communication test
+│   ├── tcam_image_capture.py    # Image capture and analysis
+│   └── leaf_detection_prototype.py # Computer vision prototype
+├── test_images/                 # Captured thermal images (created during testing)
+├── docs/                        # Documentation (to be created)
+└── cv_development/              # Computer vision development (to be created)
+```
+
+## Implementation Phases
+
+### Phase 1: Basic Setup ✅ (Ready to Start)
+- [x] Hardware connection and power-up
+- [x] Basic communication testing scripts
+- [x] Image capture and analysis tools
+- [ ] **YOUR TASK**: Run basic tests and document tCam-Mini API
+
+### Phase 2: Communication (Week 1-2)
+- [ ] WiFi configuration and network setup
+- [ ] Reliable image transfer to BeaglePlay
+- [ ] Integration with existing precision_sensors_server.py
+
+### Phase 3: Computer Vision (Week 2-3)
+- [x] Leaf detection algorithm prototype
+- [ ] Parameter tuning for greenhouse conditions
+- [ ] Validation with real greenhouse images
+
+### Phase 4: Temperature Analysis (Week 3-4)
+- [x] Per-leaf statistics calculation
+- [x] Population-level analysis
+- [ ] Integration with thermal data from tCam-Mini
+
+### Phase 5: System Integration (Week 4-5)
+- [ ] Enhanced VPD calculations using leaf temperatures
+- [ ] Dashboard updates with leaf analysis
+- [ ] API extensions for advanced data
+
+### Phase 6: Production Deployment (Week 5-6)
+- [ ] Wireless operation with dumb power supply
+- [ ] Performance optimization
+- [ ] Long-term reliability testing
+
+## Key Features to Implement
+
+### 1. Leaf Identification
+- Temperature-based segmentation to separate leaves from background
+- Morphological operations to clean noise and fill gaps
+- Shape and size filtering to validate leaf-like regions
+- Connected component analysis to identify individual leaves
+
+### 2. Per-Leaf Temperature Analysis
+For each detected leaf:
+- Number of temperature measurements (pixels)
+- Minimum and maximum temperatures
+- Mean, median, mode, and standard deviation
+- Centroid and bounding box coordinates
+
+### 3. Population-Level Statistics
+Across all detected leaves:
+- Total number of leaves in field of view
+- Overall temperature statistics (min, max, mean, median, mode, std dev)
+- Temperature distribution analysis
+- Spatial distribution of leaves
+
+### 4. Enhanced VPD Calculations
+- Air VPD: Air temperature + air humidity
+- Average Leaf VPD: Mean leaf temperature + air humidity
+- Max Leaf VPD: Hottest leaf + air humidity (stress indicator)
+- Min Leaf VPD: Coolest leaf + air humidity (optimal growth)
+- Per-leaf VPD: Individual VPD for each detected leaf
+
+## Expected Data Structure
+
+```json
 {
-  "minTemp": 18.5,
-  "maxTemp": 32.1,
-  "meanTemp": 25.3,
-  "medianTemp": 24.8,
-  "rangeTemp": 13.6,
-  "modeTemp": 24.2,
-  "stdDevTemp": 3.2,
-  "status": "ok"
-}
-```
-
-#### Expected tCam-mini API (based on GitHub examples):
-```
-GET /api/thermal
-{
-  "thermal_data": {
-    "min_temperature": 18.5,
-    "max_temperature": 32.1,
-    "mean_temperature": 25.3,
-    "median_temperature": 24.8,
-    "std_dev_temperature": 3.2,
-    "pixel_data": [...], // 160x120 array
-    "timestamp": "2025-07-24T18:30:00Z"
-  },
-  "camera_info": {
-    "model": "FLIR Lepton 3.5",
+  "timestamp": "2025-07-27T10:00:00Z",
+  "image_info": {
     "resolution": "160x120",
-    "fpa_temp": 25.2,
-    "housing_temp": 24.8
+    "total_pixels": 19200,
+    "camera_temp": 25.2
   },
-  "status": "ok"
-}
-```
-
-### Integration Points
-
-#### 1. BeaglePlay Python Server Updates
-The `fetch_tcam_thermal_data()` function needs updates for:
-- New API endpoints
-- Different JSON key names
-- Enhanced thermal data processing
-- Higher resolution pixel data handling
-
-#### 2. Enhanced Statistics
-With 160x120 resolution (19,200 pixels vs 768), we can calculate:
-- More accurate temperature statistics
-- Spatial temperature analysis
-- Hot/cold spot detection
-- Temperature gradients across canopy
-- Zone-based temperature monitoring
-
-#### 3. VPD Calculation Improvements
-Higher resolution enables:
-- Multiple canopy zones for VPD calculation
-- Plant-specific temperature monitoring
-- Growth stage adaptive monitoring
-- Precision irrigation targeting
-
-## Implementation Plan
-
-### Phase 1: Hardware Setup
-1. **Network Configuration**
-   - Configure tCam-mini WiFi settings
-   - Assign static IP address (192.168.1.185)
-   - Test basic connectivity and web interface
-
-2. **API Discovery**
-   - Explore available endpoints
-   - Document actual API format
-   - Test data retrieval and parsing
-   - Verify update rates and reliability
-
-### Phase 2: Software Integration
-1. **Update BeaglePlay Server**
-   - Modify `fetch_tcam_thermal_data()` function
-   - Handle new API format and endpoints
-   - Implement enhanced statistics calculation
-   - Add error handling for new camera
-
-2. **Enhanced Dashboard**
-   - Update thermal camera section
-   - Add higher resolution data display
-   - Implement zone-based temperature monitoring
-   - Enhanced VPD calculations with spatial data
-
-### Phase 3: Advanced Features
-1. **Spatial Analysis**
-   - Zone-based temperature monitoring
-   - Hot/cold spot detection
-   - Temperature gradient analysis
-   - Plant growth tracking
-
-2. **Enhanced VPD**
-   - Multi-zone VPD calculations
-   - Plant-specific VPD monitoring
-   - Adaptive irrigation recommendations
-   - Growth stage optimization
-
-## Configuration Files
-
-### Network Configuration
-```json
-{
-  "tcam_mini": {
-    "ip_address": "192.168.1.185",
-    "subnet_mask": "255.255.255.0",
-    "gateway": "192.168.1.1",
-    "dns": "8.8.8.8",
-    "wifi_ssid": "greenhouse_network",
-    "wifi_password": "your_password"
+  "leaf_analysis": {
+    "total_leaves_detected": 15,
+    "individual_leaves": [
+      {
+        "leaf_id": 1,
+        "pixel_count": 245,
+        "min_temp": 22.1,
+        "max_temp": 24.8,
+        "mean_temp": 23.4,
+        "median_temp": 23.3,
+        "mode_temp": 23.2,
+        "std_dev_temp": 0.8,
+        "centroid": [80, 60],
+        "bounding_box": [70, 50, 90, 70]
+      }
+    ],
+    "population_statistics": {
+      "total_measurements": 3680,
+      "overall_min_temp": 21.8,
+      "overall_max_temp": 25.2,
+      "overall_mean_temp": 23.6,
+      "overall_median_temp": 23.5,
+      "overall_mode_temp": 23.4,
+      "overall_std_dev_temp": 1.2
+    }
+  },
+  "enhanced_vpd": {
+    "air_vpd": 1.2,
+    "average_leaf_vpd": 1.1,
+    "max_leaf_vpd": 1.3,
+    "min_leaf_vpd": 0.9,
+    "per_leaf_vpd": [1.1, 1.0, 1.2, ...]
   }
 }
 ```
 
-### API Configuration
-```json
-{
-  "endpoints": {
-    "thermal_data": "/api/thermal",
-    "camera_status": "/api/status",
-    "camera_config": "/api/config",
-    "live_stream": "/api/stream",
-    "thermal_image": "/api/image"
-  },
-  "polling": {
-    "interval_seconds": 2,
-    "timeout_seconds": 5,
-    "retry_count": 3
-  }
-}
-```
+## Current Status
 
-## Code Examples
+**Hardware**: tCam-Mini-Rev 4 connected and ready for testing
+**Software**: Basic testing scripts created and ready to run
+**Next Step**: Run `tcam_basic_test.py` to discover tCam-Mini API endpoints
 
-### Updated Thermal Data Fetching
-```python
-def fetch_tcam_thermal_data():
-    """Fetch thermal camera data from tCam-mini Rev 4"""
-    try:
-        url = f"http://{TCAM_MINI_CONFIG['primary_ip']}/api/thermal"
-        response = requests.get(url, timeout=5)
-        
-        if response.status_code == 200:
-            data = response.json()
-            thermal_data = data.get('thermal_data', {})
-            
-            # Extract enhanced thermal statistics
-            thermal_min_temp = thermal_data.get('min_temperature', 0.0)
-            thermal_max_temp = thermal_data.get('max_temperature', 0.0)
-            thermal_mean_temp = thermal_data.get('mean_temperature', 0.0)
-            thermal_std_dev_temp = thermal_data.get('std_dev_temperature', 0.0)
-            
-            # Process pixel data for advanced analysis
-            pixel_data = thermal_data.get('pixel_data', [])
-            if pixel_data:
-                # Calculate additional statistics from high-res data
-                thermal_median_temp = calculate_median(pixel_data)
-                thermal_mode_temp = calculate_mode(pixel_data)
-                hot_spots = detect_hot_spots(pixel_data)
-                cold_spots = detect_cold_spots(pixel_data)
-            
-            return True
-    except Exception as e:
-        logging.error(f"Error fetching tCam-mini data: {e}")
-        return False
-```
+## Getting Help
 
-### Enhanced VPD with Spatial Data
-```python
-def calculate_enhanced_vpd_zones(pixel_data, air_temp, humidity):
-    """Calculate VPD for different canopy zones"""
-    zones = divide_into_zones(pixel_data)  # e.g., 4x4 grid
-    vpd_zones = {}
-    
-    for zone_name, zone_pixels in zones.items():
-        zone_temp = np.mean(zone_pixels)
-        svp_canopy = 0.6108 * math.exp(17.27 * zone_temp / (zone_temp + 237.3))
-        svp_air = 0.6108 * math.exp(17.27 * air_temp / (air_temp + 237.3))
-        avp = svp_air * (humidity / 100)
-        vpd_zones[zone_name] = svp_canopy - avp
-    
-    return vpd_zones
-```
+1. **Hardware Issues**: Check GETTING_STARTED.md troubleshooting section
+2. **Software Issues**: Review script comments and error messages
+3. **Computer Vision**: Tune parameters in leaf_detection_prototype.py
+4. **Integration**: Follow IMPLEMENTATION_PLAN.md phase-by-phase
 
-## Testing and Validation
+## Success Metrics
 
-### Hardware Testing
-1. **Connectivity Tests**
-   - WiFi connection stability
-   - API response times
-   - Data accuracy validation
-   - Temperature calibration
-
-2. **Performance Tests**
-   - Update rate consistency
-   - Network reliability
-   - Power consumption
-   - Operating temperature range
-
-### Software Testing
-1. **Integration Tests**
-   - API compatibility
-   - Data parsing accuracy
-   - Error handling robustness
-   - Dashboard display correctness
-
-2. **Accuracy Tests**
-   - Compare with reference thermometer
-   - Validate statistics calculations
-   - Test VPD calculation accuracy
-   - Verify spatial analysis features
-
-## Migration Strategy
-
-### From ESP32-S3 to tCam-mini
-1. **Parallel Operation**
-   - Run both cameras simultaneously during testing
-   - Compare data accuracy and reliability
-   - Validate enhanced features
-
-2. **Gradual Transition**
-   - Update API endpoints with fallback support
-   - Test enhanced features incrementally
-   - Maintain backward compatibility during transition
-
-3. **Full Migration**
-   - Remove ESP32-S3 dependencies
-   - Optimize for tCam-mini features
-   - Update documentation and user guides
-
-## Expected Benefits
-
-### Accuracy Improvements
-- **Higher Resolution**: 20x more thermal pixels for detailed analysis
-- **Professional Sensor**: FLIR Lepton 3.5 vs consumer MLX90640
-- **Better Calibration**: Factory-calibrated professional thermal sensor
-- **Spatial Analysis**: Zone-based temperature monitoring
-
-### Operational Benefits
-- **Early Growth Monitoring**: Higher resolution enables monitoring of small plants
-- **Precision VPD**: Multiple canopy zones for targeted irrigation
-- **Plant Health**: Detect stress patterns across canopy
-- **Growth Optimization**: Track temperature patterns during different growth stages
-
-### System Benefits
-- **Reliability**: Professional-grade hardware
-- **Expandability**: Rich API for future enhancements
-- **Integration**: Better WiFi connectivity with external antenna
-- **Maintenance**: Fewer calibration requirements
+- **Leaf Detection Accuracy**: >90% correct identification
+- **Temperature Accuracy**: ±0.5°C measurement precision
+- **Processing Speed**: 1-5 Hz real-time analysis
+- **System Reliability**: 99%+ uptime in production
 
 ---
 
-*This integration guide will be updated as implementation progresses and actual tCam-mini API is discovered.*
+**Start Here**: Run `python3 scripts/tcam_basic_test.py` to begin testing your tCam-Mini!
