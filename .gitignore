@@ -23,12 +23,20 @@ Thumbs.db
 # Firmware build artifacts
 firmware/beagleconnect-freedom/build/
 .venv/
+venv/
 .west/
 modules/
 zephyr/
 
 # Zephyr SDK
 zephyr-sdk-*/
+
+# tCam-Mini firmware and build artifacts
+tcam-mini-integration/firmware/
+tcam-mini-integration/tcam/
+
+# Jetson SAM2 build artifacts
+jetson-sam2-segmentation/
 
 .idea/
 
@@ -38,3 +46,6 @@ zephyr-sdk-*/
 # Temporary files
 *.tmp
 *.temp
+
+# Test results and temporary data
+tcam_test_results_*.json
