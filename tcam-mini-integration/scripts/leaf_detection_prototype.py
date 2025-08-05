@@ -299,76 +299,219 @@ class LeafDetector:
         }
     
     def visualize_results(self, results, save_path=None):
-        """Create visualization of leaf detection results"""
-        print("📊 Creating visualization...")
+        """Create comprehensive visualization of leaf detection results with clear segmentation display"""
+        print("📊 Creating enhanced visualization with segmented regions...")
         
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        fig, axes = plt.subplots(3, 3, figsize=(20, 16))
         
+        # Row 1: Processing steps
         # Original thermal image
-        axes[0, 0].imshow(results['debug_images']['temperature_array'], 
-                         cmap='hot', interpolation='nearest')
+        im1 = axes[0, 0].imshow(results['debug_images']['temperature_array'], 
+                               cmap='hot', interpolation='nearest')
         axes[0, 0].set_title('Original Thermal Image')
         axes[0, 0].set_xlabel('X (pixels)')
         axes[0, 0].set_ylabel('Y (pixels)')
+        plt.colorbar(im1, ax=axes[0, 0], label='Temperature (°C)')
         
         # Initial temperature mask
         axes[0, 1].imshow(results['debug_images']['initial_mask'], 
                          cmap='gray', interpolation='nearest')
         axes[0, 1].set_title('Temperature Threshold Mask')
+        axes[0, 1].set_xlabel('X (pixels)')
+        axes[0, 1].set_ylabel('Y (pixels)')
         
-        # Cleaned mask
+        # Cleaned mask after morphological operations
         axes[0, 2].imshow(results['debug_images']['cleaned_mask'], 
                          cmap='gray', interpolation='nearest')
-        axes[0, 2].set_title('Cleaned Mask')
+        axes[0, 2].set_title('Cleaned Mask (Morphological)')
+        axes[0, 2].set_xlabel('X (pixels)')
+        axes[0, 2].set_ylabel('Y (pixels)')
         
-        # Labeled regions
+        # Row 2: Segmentation results
+        # Connected components with different colors
         labeled = results['debug_images']['labeled_regions']
-        axes[1, 0].imshow(labeled, cmap='tab20', interpolation='nearest')
+        im2 = axes[1, 0].imshow(labeled, cmap='tab20', interpolation='nearest')
         axes[1, 0].set_title('Connected Components')
+        axes[1, 0].set_xlabel('X (pixels)')
+        axes[1, 0].set_ylabel('Y (pixels)')
         
-        # Detected leaves overlay
-        overlay = results['debug_images']['temperature_array'].copy()
-        for leaf in results['leaf_analysis']['individual_leaves']:
-            bbox = leaf['bounding_box']
-            # Draw bounding box (simplified - would need actual mask for full overlay)
-            axes[1, 1].add_patch(plt.Rectangle((bbox[0], bbox[1]), 
-                                             bbox[2]-bbox[0], bbox[3]-bbox[1],
-                                             fill=False, edgecolor='red', linewidth=2))
-            # Add leaf ID
-            axes[1, 1].text(bbox[0], bbox[1]-5, f"L{leaf['leaf_id']}", 
-                           color='red', fontsize=8, fontweight='bold')
+        # Create segmentation overlay with colored regions
+        temp_array = results['debug_images']['temperature_array']
+        segmentation_overlay = self._create_segmentation_overlay(temp_array, results['leaf_analysis']['individual_leaves'], labeled)
         
-        axes[1, 1].imshow(overlay, cmap='hot', interpolation='nearest')
-        axes[1, 1].set_title(f"Detected Leaves ({results['leaf_analysis']['total_leaves_detected']})")
+        im3 = axes[1, 1].imshow(segmentation_overlay)
+        axes[1, 1].set_title(f'Segmented Leaves Overlay ({results["leaf_analysis"]["total_leaves_detected"]} leaves)')
+        axes[1, 1].set_xlabel('X (pixels)')
+        axes[1, 1].set_ylabel('Y (pixels)')
         
+        # Contour visualization
+        contour_image = self._create_contour_visualization(temp_array, results['leaf_analysis']['individual_leaves'], labeled)
+        axes[1, 2].imshow(contour_image)
+        axes[1, 2].set_title('Leaf Contours with IDs')
+        axes[1, 2].set_xlabel('X (pixels)')
+        axes[1, 2].set_ylabel('Y (pixels)')
+        
+        # Row 3: Analysis results
         # Temperature distribution
         if results['leaf_analysis']['individual_leaves']:
             leaf_temps = [leaf['mean_temp'] for leaf in results['leaf_analysis']['individual_leaves']]
-            axes[1, 2].hist(leaf_temps, bins=10, alpha=0.7, color='green')
-            axes[1, 2].set_xlabel('Mean Leaf Temperature (°C)')
-            axes[1, 2].set_ylabel('Number of Leaves')
-            axes[1, 2].set_title('Leaf Temperature Distribution')
+            leaf_ids = [f"L{leaf['leaf_id']}" for leaf in results['leaf_analysis']['individual_leaves']]
+            
+            bars = axes[2, 0].bar(range(len(leaf_temps)), leaf_temps, 
+                                 color=plt.cm.viridis(np.linspace(0, 1, len(leaf_temps))))
+            axes[2, 0].set_xlabel('Leaf ID')
+            axes[2, 0].set_ylabel('Mean Temperature (°C)')
+            axes[2, 0].set_title('Individual Leaf Temperatures')
+            axes[2, 0].set_xticks(range(len(leaf_ids)))
+            axes[2, 0].set_xticklabels(leaf_ids, rotation=45)
+            
+            # Add value labels on bars
+            for i, (bar, temp) in enumerate(zip(bars, leaf_temps)):
+                axes[2, 0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                               f'{temp:.1f}°C', ha='center', va='bottom', fontsize=8)
+            
+            # Temperature histogram
+            axes[2, 1].hist(leaf_temps, bins=min(10, len(leaf_temps)), alpha=0.7, 
+                           color='green', edgecolor='black')
+            axes[2, 1].set_xlabel('Temperature (°C)')
+            axes[2, 1].set_ylabel('Number of Leaves')
+            axes[2, 1].set_title('Temperature Distribution')
+            axes[2, 1].grid(True, alpha=0.3)
+            
+            # Leaf size distribution
+            leaf_areas = [leaf['area_pixels'] for leaf in results['leaf_analysis']['individual_leaves']]
+            axes[2, 2].scatter(leaf_areas, leaf_temps, c=range(len(leaf_temps)), 
+                              cmap='viridis', s=60, alpha=0.7, edgecolors='black')
+            axes[2, 2].set_xlabel('Leaf Area (pixels)')
+            axes[2, 2].set_ylabel('Mean Temperature (°C)')
+            axes[2, 2].set_title('Leaf Size vs Temperature')
+            axes[2, 2].grid(True, alpha=0.3)
+            
+            # Add leaf ID annotations
+            for i, (area, temp, leaf_id) in enumerate(zip(leaf_areas, leaf_temps, leaf_ids)):
+                axes[2, 2].annotate(leaf_id, (area, temp), xytext=(5, 5), 
+                                   textcoords='offset points', fontsize=8)
         else:
-            axes[1, 2].text(0.5, 0.5, 'No leaves detected', 
-                           ha='center', va='center', transform=axes[1, 2].transAxes)
-            axes[1, 2].set_title('No Leaves Detected')
+            for ax in axes[2, :]:
+                ax.text(0.5, 0.5, 'No leaves detected', 
+                       ha='center', va='center', transform=ax.transAxes, fontsize=14)
+                ax.set_title('No Analysis Available')
         
         plt.tight_layout()
         
         if save_path:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
-            print(f"💾 Visualization saved to {save_path}")
+            print(f"💾 Enhanced visualization saved to {save_path}")
         
         plt.show()
         
-        # Print summary
-        print("\n📋 Detection Summary:")
-        print(f"   Total leaves detected: {results['leaf_analysis']['total_leaves_detected']}")
+        # Print detailed summary
+        self._print_detailed_summary(results)
+    
+    def _create_segmentation_overlay(self, temp_array, leaves, labeled_regions):
+        """Create colored overlay showing segmented leaf regions"""
+        # Convert temperature array to RGB for overlay
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import hot
+        
+        norm = Normalize(vmin=temp_array.min(), vmax=temp_array.max())
+        rgb_image = hot(norm(temp_array))
+        
+        # Create colored masks for each leaf
+        colors = plt.cm.Set3(np.linspace(0, 1, len(leaves)))
+        
+        for i, leaf in enumerate(leaves):
+            leaf_id = leaf['leaf_id']
+            # Find pixels belonging to this leaf in labeled regions
+            leaf_mask = (labeled_regions == leaf_id)
+            
+            if np.any(leaf_mask):
+                # Apply colored overlay with transparency
+                color = colors[i % len(colors)]
+                for c in range(3):  # RGB channels
+                    rgb_image[leaf_mask, c] = 0.6 * rgb_image[leaf_mask, c] + 0.4 * color[c]
+        
+        return rgb_image
+    
+    def _create_contour_visualization(self, temp_array, leaves, labeled_regions):
+        """Create visualization with leaf contours and ID labels"""
+        # Start with temperature image as background
+        from matplotlib.colors import Normalize
+        from matplotlib.cm import hot
+        
+        norm = Normalize(vmin=temp_array.min(), vmax=temp_array.max())
+        rgb_image = hot(norm(temp_array))
+        
+        # Convert to uint8 for OpenCV operations
+        display_image = (rgb_image * 255).astype(np.uint8)
+        
+        # Draw contours for each leaf
+        for leaf in leaves:
+            leaf_id = leaf['leaf_id']
+            leaf_mask = (labeled_regions == leaf_id).astype(np.uint8)
+            
+            if np.any(leaf_mask):
+                # Find contours
+                contours, _ = cv2.findContours(leaf_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                # Draw contours in bright color
+                cv2.drawContours(display_image, contours, -1, (0, 255, 255), 2)  # Cyan contours
+                
+                # Add leaf ID label at centroid
+                if contours:
+                    # Calculate centroid
+                    M = cv2.moments(contours[0])
+                    if M["m00"] != 0:
+                        cx = int(M["m10"] / M["m00"])
+                        cy = int(M["m01"] / M["m00"])
+                        
+                        # Add text label
+                        cv2.putText(display_image, f'L{leaf_id}', (cx-10, cy+5),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)  # Yellow text
+        
+        return display_image
+    
+    def _print_detailed_summary(self, results):
+        """Print comprehensive analysis summary"""
+        print("\n" + "="*60)
+        print("🌿 LEAF DETECTION ANALYSIS SUMMARY")
+        print("="*60)
+        
+        # Detection overview
+        print(f"📊 Detection Overview:")
+        print(f"   • Image dimensions: {results['detection_info']['image_shape']}")
+        print(f"   • Total pixels analyzed: {results['detection_info']['total_pixels']:,}")
+        print(f"   • Leaves detected: {results['leaf_analysis']['total_leaves_detected']}")
+        
+        # Processing steps
+        steps = results['processing_steps']
+        print(f"\n🔍 Processing Steps:")
+        print(f"   • Initial mask pixels: {steps['initial_mask_pixels']:,}")
+        print(f"   • Cleaned mask pixels: {steps['cleaned_mask_pixels']:,}")
+        print(f"   • Connected components: {steps['connected_components']}")
+        print(f"   • Valid leaves found: {steps['valid_leaves_found']}")
+        
+        # Individual leaf details
+        if results['leaf_analysis']['individual_leaves']:
+            print(f"\n🍃 Individual Leaf Analysis:")
+            for leaf in results['leaf_analysis']['individual_leaves']:
+                print(f"   Leaf {leaf['leaf_id']}:")
+                print(f"      • Area: {leaf['area_pixels']} pixels")
+                print(f"      • Temperature: {leaf['min_temp']:.1f}°C - {leaf['max_temp']:.1f}°C (avg: {leaf['mean_temp']:.1f}°C)")
+                print(f"      • Std deviation: {leaf['std_dev_temp']:.1f}°C")
+                print(f"      • Bounding box: {leaf['bounding_box']}")
+        
+        # Population statistics
         if results['population_statistics']['total_leaves'] > 0:
             pop = results['population_statistics']
-            print(f"   Temperature range: {pop['overall_min_temp']:.1f}°C - {pop['overall_max_temp']:.1f}°C")
-            print(f"   Mean temperature: {pop['overall_mean_temp']:.1f}°C")
-            print(f"   Temperature std dev: {pop['overall_std_dev_temp']:.1f}°C")
+            print(f"\n📈 Population Statistics:")
+            print(f"   • Overall temperature range: {pop['overall_min_temp']:.1f}°C - {pop['overall_max_temp']:.1f}°C")
+            print(f"   • Mean temperature: {pop['overall_mean_temp']:.1f}°C")
+            print(f"   • Temperature std deviation: {pop['overall_std_dev_temp']:.1f}°C")
+            print(f"   • Total leaf area: {pop['total_leaf_area']} pixels")
+            print(f"   • Average leaf size: {pop['average_leaf_size']:.1f} pixels")
+        
+        print("="*60)
 
 def test_with_sample_data():
     """Test leaf detection with synthetic thermal data"""

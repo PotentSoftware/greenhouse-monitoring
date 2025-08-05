@@ -31,8 +31,13 @@ zephyr/
 # Zephyr SDK
 zephyr-sdk-*/
 
-# tCam-Mini firmware and build artifacts
-tcam-mini-integration/firmware/
+# tCam-Mini firmware build artifacts (keep source code)
+tcam-mini-integration/firmware/tcam-firmware/build/
+tcam-mini-integration/firmware/tcam-firmware/managed_components/
+tcam-mini-integration/firmware/tcam-firmware/dependencies.lock
+tcam-mini-integration/firmware/tcam-firmware/sdkconfig.backup
+tcam-mini-integration/firmware/tcam-firmware/sdkconfig.old
+tcam-mini-integration/firmware/station_mode_config/build/
 tcam-mini-integration/tcam/
 
 # Jetson SAM2 build artifacts

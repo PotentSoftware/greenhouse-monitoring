@@ -23,7 +23,7 @@ import os
 app = Flask(__name__)
 
 class TcamWebInterface:
-    def __init__(self, tcam_host='192.168.1.130', tcam_port=5001):
+    def __init__(self, tcam_host="192.168.1.130", tcam_port=5001):
         self.tcam_host = tcam_host
         self.tcam_port = tcam_port
         self.latest_image = None
@@ -543,12 +543,47 @@ def thermal_image():
 
 @app.route('/status')
 def status():
-    """Get device status and temperature stats"""
-    device_info = tcam_interface.get_device_status()
+    """Return system status"""
     return jsonify({
-        'device': device_info,
+        'device': tcam_interface.device_info,
         'stats': tcam_interface.stats
     })
+
+@app.route('/api/thermal_data')
+def api_thermal_data():
+    """Return raw thermal data in JSON format for integration"""
+    try:
+        thermal_data = tcam_interface.get_thermal_image()
+        
+        if thermal_data is None:
+            return jsonify({
+                'success': False,
+                'error': 'No thermal data available',
+                'demo_mode': True
+            }), 404
+        
+        # Convert numpy array to list for JSON serialization
+        thermal_list = thermal_data.tolist()
+        
+        return jsonify({
+            'success': True,
+            'thermal_data': thermal_list,
+            'shape': thermal_data.shape,
+            'temperature_range': {
+                'min': float(thermal_data.min()),
+                'max': float(thermal_data.max()),
+                'mean': float(thermal_data.mean())
+            },
+            'timestamp': datetime.now().isoformat(),
+            'demo_mode': not tcam_interface.is_connected()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'demo_mode': True
+        }), 500
 
 @app.route('/capture_video', methods=['POST'])
 def capture_video():
@@ -584,5 +619,5 @@ def capture_video():
 if __name__ == '__main__':
     print("🌐 Starting tCam-Mini Web Interface...")
     print("📱 Access at: http://localhost:8080")
-    print("🌡️  Connecting to tCam-Mini at 192.168.1.130:5001")
+    print("🌡️  Connecting to tCam-Mini at 192.168.1.223:5001")
     app.run(host='0.0.0.0', port=8080, debug=False)
