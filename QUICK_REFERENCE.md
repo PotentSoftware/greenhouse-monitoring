@@ -21,6 +21,7 @@
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | 🌡️ **ESP32-S3 Thermal** | http://192.168.1.176 | None |
+| 📊 **BeaglePlay Dashboard** | http://192.168.1.203:8081 | None |
 | 📊 **Grafana Dashboard** | http://localhost:3000 | admin/admin |
 | 🔧 **Node-RED Editor** | http://localhost:1880 | None |
 | 💾 **InfluxDB Admin** | http://localhost:8086 | Token-based |

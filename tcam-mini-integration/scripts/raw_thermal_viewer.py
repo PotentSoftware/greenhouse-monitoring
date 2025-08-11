@@ -20,7 +20,7 @@ import cv2
 app = Flask(__name__)
 
 class RawThermalViewer:
-    def __init__(self, tcam_ip="192.168.4.1"):
+    def __init__(self, tcam_ip="192.168.1.130"):
         self.tcam_ip = tcam_ip
         self.base_url = None
         self.latest_image = None
@@ -226,7 +226,7 @@ def status():
 
 if __name__ == '__main__':
     print("🌡️ Starting Raw Thermal Viewer...")
-    print(f"📱 Access at: http://localhost:8081")
+    print(f"📱 Access at: http://localhost:8082")
     print(f"🎯 Target device: {viewer.tcam_ip}")
     
-    app.run(host='0.0.0.0', port=8081, debug=False)
+    app.run(host='0.0.0.0', port=8082, debug=False)

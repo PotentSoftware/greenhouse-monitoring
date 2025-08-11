@@ -9,7 +9,7 @@ import time
 
 def test_raw_socket():
     """Test basic socket communication with different approaches"""
-    host = "192.168.4.1"
+    host = "192.168.1.130"
     port = 5001
     
     print(f"🔗 Testing raw socket to {host}:{port}")
@@ -18,9 +18,7 @@ def test_raw_socket():
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(10)
         sock.connect((host, port))
-        print("✅ Connected!")
-        
-        # Test 1: Just send a simple string
+        print("✅ Connected!")http://192.168.1.203:8081/
         print("\n📤 Test 1: Simple string")
         sock.send(b"hello\n")
         try:

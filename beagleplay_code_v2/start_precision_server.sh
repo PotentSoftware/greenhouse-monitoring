@@ -5,7 +5,7 @@
 
 LOG_FILE="/home/debian/precision_server_startup.log"
 SERVER_SCRIPT="/home/debian/precision_sensors_server.py"
-PORT=8080
+PORT=8081
 
 # Function to log messages with timestamp
 log_message() {
@@ -26,11 +26,11 @@ check_port() {
     return $?
 }
 
-# Function to find and kill processes using port 8080
+# Function to find and kill processes using port 8081
 cleanup_port() {
     log_message "🔍 Checking for processes using port $PORT"
     
-    # Find processes using port 8080
+    # Find processes using port 8081
     PIDS=$(lsof -ti:$PORT 2>/dev/null)
     
     if [ -n "$PIDS" ]; then
@@ -110,7 +110,7 @@ log_message "🧹 Starting cleanup sequence"
 # Step 1: Clean up existing server processes
 cleanup_existing_servers
 
-# Step 2: Clean up port 8080
+# Step 2: Clean up port 8081
 if ! cleanup_port; then
     log_message "❌ FATAL: Could not clean up port $PORT"
     exit 1

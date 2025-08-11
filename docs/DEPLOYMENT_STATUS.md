@@ -10,8 +10,8 @@
 The greenhouse monitoring system is now **completely functional** with real, changing sensor data from the BeagleConnect Freedom device.
 
 ### Live System URLs
-- **🌡️ Main Dashboard**: http://192.168.1.203:8080/ (Real-time sensor + thermal data)
-- **📊 API Endpoint**: http://192.168.1.203:8080/api/data (JSON sensor data)
+- **🌡️ Main Dashboard**: http://192.168.1.203:8081/ (Real-time sensor + thermal data)
+- **📊 API Endpoint**: http://192.168.1.203:8081/api/data (JSON sensor data)
 - **📷 Thermal Camera**: http://192.168.1.176/ (ESP32-S3 thermal interface)
 
 ## 📊 Current Sensor Data (Live)
@@ -96,7 +96,7 @@ ssh debian@192.168.1.203 "tail -f /home/debian/sensor_server.log"
 # Should show: "Generated realistic sensor data from Greybus interface"
 
 # Test API endpoint
-curl -s http://192.168.1.203:8080/api/data | jq
+curl -s http://192.168.1.203:8081/api/data | jq
 # Should return changing temperature, humidity, light values
 
 # Check service status
@@ -107,7 +107,7 @@ ssh debian@192.168.1.203 "sudo systemctl status greenhouse-webserver.service"
 ### Monitor Live Data
 ```bash
 # Watch sensor data changes
-watch -n 5 'curl -s http://192.168.1.203:8080/api/data | jq ".temperature, .humidity, .light"'
+watch -n 5 'curl -s http://192.168.1.203:8081/api/data | jq ".temperature, .humidity, .light"'
 
 # Monitor system logs
 ssh debian@192.168.1.203 "sudo journalctl -u greenhouse-webserver.service -f"

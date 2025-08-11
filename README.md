@@ -1,12 +1,27 @@
-# 🌱 Greenhouse IoT Monitoring System
+# 🌱 Greenhouse Monitoring System
 
-✅ **FULLY OPERATIONAL** - A professional 24/7 greenhouse monitoring system integrating dual precision sensors (SHT45 + HDC3022) with ESP32-S3 thermal imaging for enhanced plant health management.
+This repository contains the code and documentation for a comprehensive greenhouse monitoring system using BeaglePlay, precision sensors, and thermal imaging.
 
-🎉 **FEATHER S3[D] INTEGRATION COMPLETE** (July 26, 2025): Dual precision sensors (SHT45 + HDC3022) now providing high-accuracy temperature and humidity data with enhanced VPD calculations!
+## Current Status: ✅ **FULLY OPERATIONAL**
 
-🔬 **THERMAL FILTERING IMPLEMENTED** (July 26, 2025): Advanced negative pixel filtering ensures accurate thermal camera statistics by excluding faulty sensor pixels!
+**Last Updated**: 2025-08-11  
+**System Version**: v2.0 (Wireless Deployment Ready)
 
-🎨 **PROFESSIONAL DASHBOARD** (July 26, 2025): Enhanced UI with comprehensive help system, scientific formula documentation, and clear VPD labeling!
+The system is now fully operational with all components working wirelessly:
+- ✅ BeaglePlay dashboard server (192.168.1.203:8081)
+- ✅ Feather S3[D] dual precision sensors (192.168.1.81:8080)  
+- ✅ tCam-Mini thermal camera (192.168.1.130:5001)
+- ✅ Thermal web interface (192.168.1.223:8080)
+- ✅ Complete wireless operation with external power supplies
+
+## 🚀 Key Features
+
+- **Dual Precision Sensors**: SHT45 + HDC3022 for high-accuracy environmental monitoring
+- **Thermal Imaging**: FLIR Lepton 3.5 thermal camera with real-time streaming
+- **Professional Dashboard**: Web-based interface with time series plots and data export
+- **Wireless Operation**: Complete WiFi-based system with external power supplies
+- **VPD Calculations**: Multiple VPD variants for advanced plant health analysis
+- **24/7 Monitoring**: Autonomous operation with data logging and health monitoring
 
 ## 🏗️ System Architecture
 
@@ -40,7 +55,7 @@ ESP32-S3 Thermal Camera ─────────────────┘
 ## 🚀 Quick Start
 
 ### Access Your Dashboards
-- **🌡️ Main Dashboard**: http://192.168.1.203:8080/ (Integrated sensor + thermal data)
+- **🌡️ Main Dashboard**: http://192.168.1.203:8081/ (Integrated sensor + thermal data)
 - **📷 Thermal Camera**: http://192.168.1.176/ (Direct camera interface)
 - **🔧 Node-RED Editor**: http://192.168.1.203:1880/ (Optional flow configuration)
 
@@ -283,7 +298,7 @@ Standalone thermal imaging system with web interface and dark mode.
 ## 🎯 System Status
 
 **🟢 ACTIVE COMPONENTS:**
-- **Main Dashboard**: http://192.168.1.203:8080/ ✅
+- **Main Dashboard**: http://192.168.1.203:8081/ ✅
 - **Thermal Camera**: http://192.168.1.176/ ✅  
 - **BeagleConnect Sensors**: pH, Temperature, Humidity ✅
 - **Systemd Service**: Auto-startup enabled ✅

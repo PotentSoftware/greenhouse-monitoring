@@ -368,14 +368,14 @@ def main():
     # Check if we should use AP mode or try to detect device
     import sys
     
-    tcam_ip = "192.168.4.1"  # Default AP mode
+    tcam_ip = "192.168.1.130"  # Station mode IP
     
     if len(sys.argv) > 1:
         tcam_ip = sys.argv[1]
         print(f"📡 Using custom IP: {tcam_ip}")
     else:
-        print(f"📡 Using AP mode IP: {tcam_ip}")
-        print("💡 Connect to tCam-Mini-CDE9 WiFi first!")
+        print(f"📡 Using station mode IP: {tcam_ip}")
+        print("💡 tCam-Mini connected to home WiFi!")
     
     viewer = LiveThermalViewer(tcam_ip)
     

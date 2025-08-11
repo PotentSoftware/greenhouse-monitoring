@@ -171,8 +171,7 @@ class TcamWebInterface:
         print(f"Video saved to: {output_path}")
         return True
 
-# Create global instance
-tcam_interface = TcamWebInterface()
+# Global instance will be created in main() with correct IP
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -498,7 +497,7 @@ def index():
 @app.route('/thermal_image')
 def thermal_image():
     """Generate and serve thermal image"""
-    thermal_data = tcam_interface.get_thermal_image()
+    thermal_data = app.tcam_interface.get_thermal_image()
     
     if thermal_data is None:
         # Return error image with dark theme
@@ -514,7 +513,7 @@ def thermal_image():
         fig, ax = plt.subplots(figsize=(8, 6), facecolor='#1a1a1a')
         ax.set_facecolor('#2a2a2a')
         
-        im = ax.imshow(thermal_data, cmap=tcam_interface.thermal_cmap, aspect='auto')
+        im = ax.imshow(thermal_data, cmap=app.tcam_interface.thermal_cmap, aspect='auto')
         
         # Dark theme styling
         title_text = f'🌡️ Thermal Image - {datetime.now().strftime("%H:%M:%S")} | Range: {thermal_data.min():.1f}°C to {thermal_data.max():.1f}°C'
@@ -545,15 +544,15 @@ def thermal_image():
 def status():
     """Return system status"""
     return jsonify({
-        'device': tcam_interface.device_info,
-        'stats': tcam_interface.stats
+        'device': app.tcam_interface.device_info,
+        'stats': app.tcam_interface.stats
     })
 
 @app.route('/api/thermal_data')
 def api_thermal_data():
     """Return raw thermal data in JSON format for integration"""
     try:
-        thermal_data = tcam_interface.get_thermal_image()
+        thermal_data = app.tcam_interface.get_thermal_image()
         
         if thermal_data is None:
             return jsonify({
@@ -575,7 +574,7 @@ def api_thermal_data():
                 'mean': float(thermal_data.mean())
             },
             'timestamp': datetime.now().isoformat(),
-            'demo_mode': not tcam_interface.is_connected()
+            'demo_mode': not app.tcam_interface.is_connected()
         })
         
     except Exception as e:
@@ -590,7 +589,7 @@ def capture_video():
     """Capture thermal video and return as downloadable file"""
     try:
         # Capture frames
-        frames = tcam_interface.capture_video_frames(num_frames=10)
+        frames = app.tcam_interface.capture_video_frames(num_frames=10)
         
         if not frames:
             return jsonify({'error': 'Failed to capture frames'}), 500
@@ -605,7 +604,7 @@ def capture_video():
         video_path = os.path.join(desktop_path, video_filename)
         
         # Create video file
-        success = tcam_interface.create_video_file(frames, video_path)
+        success = app.tcam_interface.create_video_file(frames, video_path)
         
         if success and os.path.exists(video_path):
             return send_file(video_path, as_attachment=True, download_name=video_filename, mimetype='video/mp4')
@@ -617,7 +616,19 @@ def capture_video():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='tCam-Mini Web Interface')
+    parser.add_argument('--tcam-ip', default='192.168.1.130', help='tCam-Mini IP address')
+    parser.add_argument('--tcam-port', type=int, default=5001, help='tCam-Mini port')
+    parser.add_argument('--web-port', type=int, default=8080, help='Web server port')
+    args = parser.parse_args()
+    
+    # Create TcamWebInterface with correct IP
+    tcam_interface = TcamWebInterface(tcam_host=args.tcam_ip, tcam_port=args.tcam_port)
+    app.tcam_interface = tcam_interface
+    
     print("🌐 Starting tCam-Mini Web Interface...")
-    print("📱 Access at: http://localhost:8080")
-    print("🌡️  Connecting to tCam-Mini at 192.168.1.223:5001")
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    print(f"📱 Access at: http://localhost:{args.web_port}")
+    print(f"🌡️  Connecting to tCam-Mini at {args.tcam_ip}:{args.tcam_port}")
+    app.run(host='0.0.0.0', port=args.web_port, debug=False)

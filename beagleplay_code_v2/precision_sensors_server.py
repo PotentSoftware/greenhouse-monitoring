@@ -31,10 +31,10 @@ FEATHER_S3D_IPS = ['192.168.1.81', '192.168.1.150', '192.168.1.100', '192.168.1.
 FEATHER_S3D_PORT = 8080
 FEATHER_S3D_TIMEOUT = 5
 
-THERMAL_CAMERA_IPS = ['192.168.1.176', '192.168.1.100', '192.168.1.177']
+THERMAL_CAMERA_IPS = []  # No thermal cameras connected
 THERMAL_CAMERA_TIMEOUT = 5
 
-SERVER_PORT = 8080
+SERVER_PORT = 8081
 SENSOR_READ_INTERVAL = 5  # seconds
 LOG_INTERVAL = 300  # 5 minutes
 
@@ -483,11 +483,11 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
         avg_humidity = sensor_data["feather_s3d"]["averages"]["humidity"] or 0.0
         avg_vpd = sensor_data["feather_s3d"]["averages"]["vpd"] or 0.0
         
-        # Thermal camera data
-        thermal_min = sensor_data["thermal_camera"]["min_temp"] or 0.0
-        thermal_max = sensor_data["thermal_camera"]["max_temp"] or 0.0
-        thermal_avg = sensor_data["thermal_camera"]["avg_temp"] or 0.0
-        thermal_modal = sensor_data["thermal_camera"]["modal_temp"] or 0.0
+        # Thermal camera data - safely access with defaults
+        thermal_min = sensor_data["thermal_camera"].get("min_temp") or 0.0
+        thermal_max = sensor_data["thermal_camera"].get("max_temp") or 0.0
+        thermal_avg = sensor_data["thermal_camera"].get("avg_temp") or 0.0
+        thermal_modal = sensor_data["thermal_camera"].get("modal_temp") or sensor_data["thermal_camera"].get("center_temp") or 0.0
         thermal_filtered_pixels = sensor_data["thermal_camera"].get("negative_pixels_filtered", 0)
         thermal_data_source = sensor_data["thermal_camera"].get("data_source", "unknown")
         thermal_total_pixels = sensor_data["thermal_camera"].get("total_pixels", 0)
@@ -680,7 +680,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                     <div class="tools-dropdown" id="toolsDropdown">
                         <a href="#" onclick="showHelp(); closeToolsMenu(); return false;">Help</a>
                         <a href="/export_data" target="_blank" onclick="closeToolsMenu()">Export Logging Data</a>
-                        <a href="http://192.168.1.176/" target="_blank" onclick="closeToolsMenu()">Thermal Camera</a>
+                        <a href="http://192.168.1.223:8080/" target="_blank" onclick="closeToolsMenu()">Thermal Camera</a>
                         <a href="/plots" target="_blank" onclick="closeToolsMenu()">Time Series Plots</a>
                     </div>
                 </div>

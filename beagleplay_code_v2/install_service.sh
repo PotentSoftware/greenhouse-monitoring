@@ -77,7 +77,7 @@ if systemctl is-active --quiet precision-sensors.service; then
     echo "   Startup: /home/debian/precision_server_startup.log"
     echo "   Server:  /home/debian/precision_server.log"
     echo ""
-    echo "🌐 Dashboard: http://192.168.1.203:8080/"
+    echo "🌐 Dashboard: http://192.168.1.203:8081/"
     
 else
     echo "❌ Service failed to start!"
