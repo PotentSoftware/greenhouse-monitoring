@@ -20,10 +20,20 @@ Thumbs.db
 # IDE files
 .vscode/
 
-# Firmware build artifacts
-firmware/beagleconnect-freedom/build/
+# Thermal camera test images and directories
+thermal_image_*.png
+thermal_simple/
+thermal_*.png
+
+# Embedded git repositories (use submodules instead)
+tcam-mini-integration/firmware/tcam-mini-source/
+
+# Python virtual environments
 .venv/
 venv/
+
+# Firmware build artifacts
+firmware/beagleconnect-freedom/build/
 .west/
 modules/
 zephyr/
