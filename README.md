@@ -28,16 +28,20 @@ The system is now fully operational with all components working wirelessly:
 ```
 Feather S3[D] Sensors → BeaglePlay → Precision Sensors Server (Port 8080)
   (SHT45 + HDC3022)       ↓              ↓
-   T_air, RH (dual)    USB Serial    Professional Dashboard
+   T_air, RH (dual)    WiFi/USB      Professional Dashboard
                                          ↑
-ESP32-S3 Thermal Camera ─────────────────┘
-(T_canopy, filtered pixels, real-time)                                  
+ESP32-S3 Thermal Camera ─────────────────┤
+(T_canopy, filtered pixels, real-time)   │
+                                         │
+Jetson Orin Nano ────────────────────────┘
+(AI Processing, SAM2 Leaf Segmentation)
 ```
 
 ### System Components
 - **Feather S3[D]**: Dual precision sensors (SHT45 + HDC3022) with CircuitPython firmware
-- **ESP32-S3 Thermal Camera**: Standalone thermal imaging with negative pixel filtering
+- **ESP32-S3 Thermal Camera**: Standalone thermal imaging with negative pixel filtering  
 - **BeaglePlay**: Linux host running precision sensors server with enhanced VPD calculations
+- **Jetson Orin Nano**: AI processing unit with Intel AX200NGW WiFi 6 for advanced computer vision
 
 **Key Features:**
 - ✅ **Dual Precision Sensors** - SHT45 and HDC3022 for high-accuracy measurements
@@ -58,6 +62,7 @@ ESP32-S3 Thermal Camera ─────────────────┘
 - **🌡️ Main Dashboard**: http://192.168.1.203:8081/ (Integrated sensor + thermal data)
 - **📷 Thermal Camera**: http://192.168.1.176/ (Direct camera interface)
 - **🔧 Node-RED Editor**: http://192.168.1.203:1880/ (Optional flow configuration)
+- **🤖 Jetson Orin Nano**: ssh lionel@192.168.1.75 (AI processing unit)
 
 ### System Status ✅ FULLY OPERATIONAL
 The system runs independently on the BeaglePlay device with:
@@ -209,6 +214,44 @@ sudo journalctl -u greenhouse-webserver.service -f
 ├── FIRMWARE_INTEGRATION_PLAN.md        # 📋 Integration documentation
 └── README.md                          # 📚 This documentation
 ```
+
+## 🖥️ Hardware Components
+
+### Jetson Orin Nano - AI Processing Unit
+- **Model**: NVIDIA Jetson Orin Nano
+- **Storage**: 2TB NVMe SSD
+- **WiFi**: Intel AX200NGW WiFi 6 card
+- **Network**: 192.168.1.75 (WiFi), 192.168.55.1 (USB backup)
+- **OS**: Ubuntu 22.04.5 LTS (ARM64)
+- **Purpose**: Advanced computer vision and SAM2 leaf segmentation
+
+#### WiFi 6 Setup
+The Jetson includes an Intel AX200NGW WiFi 6 card for high-performance wireless connectivity:
+- **Driver**: backport-iwlwifi-dkms (automatically compiled for Tegra kernel)
+- **Interface**: wlP1p1s0
+- **Capabilities**: 802.11ax (WiFi 6), 2.4/5 GHz, up to 2.4 Gbps
+- **Security**: WPA3/WPA2 support
+
+**Setup Documentation**: See [docs/JETSON_ORIN_NANO_WIFI_SETUP.md](docs/JETSON_ORIN_NANO_WIFI_SETUP.md) for complete installation guide.
+
+**Quick Reference**: See [docs/JETSON_WIFI_QUICK_REFERENCE.md](docs/JETSON_WIFI_QUICK_REFERENCE.md) for troubleshooting commands.
+
+#### SSH Access
+```bash
+# Primary WiFi access
+ssh lionel@192.168.1.75
+
+# USB backup access  
+ssh lionel@192.168.55.1
+
+# Password: 357843
+```
+
+### Other Hardware Components
+- **BeaglePlay**: Linux host (192.168.1.203) running precision sensors server
+- **Feather S3[D]**: Dual precision sensors (192.168.1.81) with SHT45 + HDC3022
+- **ESP32-S3**: Thermal camera host (192.168.1.176) with MLX90640 sensor
+- **tCam-Mini**: Advanced thermal camera (192.168.1.130) with FLIR Lepton 3.5
 
 ## 🛠️ Troubleshooting
 

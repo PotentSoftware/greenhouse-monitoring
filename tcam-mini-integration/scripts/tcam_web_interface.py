@@ -4,7 +4,7 @@ Simple Web Interface for tCam-Mini
 Provides HTTP access to thermal images and device status
 """
 
-from flask import Flask, render_template_string, jsonify, send_file
+from flask import Flask, render_template_string, jsonify, send_file, request
 import socket
 import json
 import base64
@@ -18,6 +18,7 @@ import threading
 import time
 from datetime import datetime
 import cv2
+from scipy import stats
 import os
 
 app = Flask(__name__)
@@ -584,10 +585,97 @@ def api_thermal_data():
             'demo_mode': True
         }), 500
 
+@app.route('/thermal_data')
+def thermal_data():
+    """Return thermal statistics for dashboard integration"""
+    try:
+        thermal_data = app.tcam_interface.get_thermal_image()
+        
+        if thermal_data is None:
+            return jsonify({
+                'success': False,
+                'error': 'No thermal data available'
+            }), 404
+        
+        # Filter out negative pixels (faulty sensors)
+        valid_pixels = thermal_data[thermal_data >= 0]
+        
+        if len(valid_pixels) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'No valid thermal pixels available'
+            }), 404
+        
+        # Calculate statistics
+        import numpy as np
+        from scipy import stats
+        
+        min_temp = float(valid_pixels.min())
+        max_temp = float(valid_pixels.max())
+        mean_temp = float(valid_pixels.mean())
+        median_temp = float(np.median(valid_pixels))
+        
+        # Calculate mode (most frequent temperature)
+        try:
+            mode_result = stats.mode(valid_pixels, keepdims=True)
+            mode_temp = float(mode_result.mode[0])
+        except:
+            mode_temp = mean_temp  # Fallback to mean if mode calculation fails
+        
+        return jsonify({
+            'success': True,
+            'minTemp': min_temp,
+            'maxTemp': max_temp,
+            'meanTemp': mean_temp,
+            'medianTemp': median_temp,
+            'modeTemp': mode_temp,
+            'totalPixels': int(thermal_data.size),
+            'validPixels': int(len(valid_pixels)),
+            'filteredPixels': int(thermal_data.size - len(valid_pixels)),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/thermal_raw')
+def thermal_raw():
+    """Return raw thermal pixel data for dashboard integration"""
+    try:
+        thermal_data = app.tcam_interface.get_thermal_image()
+        
+        if thermal_data is None:
+            return jsonify({
+                'success': False,
+                'error': 'No thermal data available'
+            }), 404
+        
+        # Convert to flat list of pixel temperatures
+        pixels = thermal_data.flatten().tolist()
+        
+        return jsonify({
+            'success': True,
+            'pixels': pixels,
+            'shape': thermal_data.shape,
+            'totalPixels': len(pixels),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/capture_video', methods=['POST'])
 def capture_video():
-    """Capture thermal video and return as downloadable file"""
+    """Capture thermal video sequence"""
     try:
+        data = request.get_json()
+        duration = data.get('duration', 10)  # Default 10 seconds
         # Capture frames
         frames = app.tcam_interface.capture_video_frames(num_frames=10)
         

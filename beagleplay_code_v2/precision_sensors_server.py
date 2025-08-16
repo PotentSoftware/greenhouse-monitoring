@@ -31,7 +31,7 @@ FEATHER_S3D_IPS = ['192.168.1.81', '192.168.1.150', '192.168.1.100', '192.168.1.
 FEATHER_S3D_PORT = 8080
 FEATHER_S3D_TIMEOUT = 5
 
-THERMAL_CAMERA_IPS = []  # No thermal cameras connected
+THERMAL_CAMERA_IPS = ['192.168.1.223:8080']  # Thermal web interface on laptop
 THERMAL_CAMERA_TIMEOUT = 5
 
 SERVER_PORT = 8081
@@ -756,31 +756,31 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
-            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Max Canopy Temperature)</h2>
+            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Modal Canopy Temperature)</h2>
             <div class="dashboard-container">
                 <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Max + SHT45)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_max_sht45:.2f} kPa</div>
+                    <h2>VPD (Modal + SHT45)</h2>
+                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_sht45:.2f} kPa</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Max: {thermal_max:.1f}&deg;C<br>
+                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
                         Humidity: SHT45 ({sht45_humidity:.1f}%RH)
                     </div>
                 </div>
                 
                 <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Max + HDC3022)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_max_hdc3022:.2f} kPa</div>
+                    <h2>VPD (Modal + HDC3022)</h2>
+                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_hdc3022:.2f} kPa</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Max: {thermal_max:.1f}&deg;C<br>
+                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
                         Humidity: HDC3022 ({hdc3022_humidity:.1f}%RH)
                     </div>
                 </div>
                 
                 <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Max + Average)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_max_avg:.2f} kPa</div>
+                    <h2>VPD (Modal + Average)</h2>
+                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_avg:.2f} kPa</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Max: {thermal_max:.1f}&deg;C<br>
+                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
                         Humidity: Average ({avg_humidity:.1f}%RH)
                     </div>
                 </div>
@@ -816,35 +816,6 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
-            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Modal Canopy Temperature)</h2>
-            <div class="dashboard-container">
-                <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Modal + SHT45)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_sht45:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: SHT45 ({sht45_humidity:.1f}%RH)
-                    </div>
-                </div>
-                
-                <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Modal + HDC3022)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_hdc3022:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: HDC3022 ({hdc3022_humidity:.1f}%RH)
-                    </div>
-                </div>
-                
-                <div class="sensor-box" style="background-color: #2d1b00;">
-                    <h2>VPD (Modal + Average)</h2>
-                    <div class="sensor-value" style="color: #ff9800">{enhanced_vpd_modal_avg:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: Average ({avg_humidity:.1f}%RH)
-                    </div>
-                </div>
-            </div>
             
             <h2 style="color: #4caf50; text-align: center; margin: 20px 0;">Thermal Camera Statistics</h2>
             <div class="dashboard-container">
@@ -902,7 +873,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                     
                     <h4 style="color: #4caf50;">Enhanced VPD Types:</h4>
                     <ul>
-                        <li><strong>Enhanced VPD (Dashboard):</strong> Uses thermal camera temperature (Max/Avg/Modal) + individual sensor humidity (SHT45 or HDC3022)</li>
+                        <li><strong>Enhanced VPD (Dashboard):</strong> Uses thermal camera temperature (Modal/Avg/Max) + individual sensor humidity (SHT45 or HDC3022)</li>
                         <li><strong>Enhanced VPD (Plot 1):</strong> Average of Air VPD + Canopy VPD (uses averaged sensor data + thermal average)</li>
                         <li><strong>Canopy VPD (Plot 2):</strong> Thermal camera temperature + air humidity (leaf temperature effect)</li>
                         <li><strong>Thermal VPD (Plot 3):</strong> Thermal camera temperature + thermal-derived humidity (pure thermal calculation)</li>
