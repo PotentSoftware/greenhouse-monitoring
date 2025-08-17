@@ -30,6 +30,8 @@ import base64
 from sensor_manager import SensorManager
 from vpd_calculator import VPDCalculator
 from thermal_processor import ThermalProcessor
+from thermal_image_collector import ThermalImageCollector
+from thermal_image_analyzer import ThermalImageAnalyzer
 import jetson_config as config
 
 # Configure logging
@@ -48,6 +50,9 @@ class JetsonGreenhouseServer:
         self.sensor_manager = SensorManager(config)
         self.vpd_calculator = VPDCalculator()
         self.thermal_processor = ThermalProcessor(config)
+        self.thermal_collector = ThermalImageCollector(config, self.sensor_manager)
+        self.thermal_analyzer = ThermalImageAnalyzer()
+        self.latest_analysis = None  # Store latest analysis results
         
         # Initialize data storage
         self.ensure_data_directory()
@@ -220,6 +225,12 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 self.serve_sensor_data()
             elif path == '/health':
                 self.serve_health_check()
+            elif path == '/analysis_results':
+                self.serve_analysis_results()
+            elif path == '/api/analysis_results':
+                self.serve_analysis_results_api()
+            elif path == '/api/get_available_collections':
+                self.handle_get_available_collections()
             else:
                 self.send_error(404, "Not Found")
                 
@@ -235,6 +246,14 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
             
             if path == '/api/set_processing_strategy':
                 self.handle_set_processing_strategy()
+            elif path == '/api/collect_thermal_images':
+                self.handle_collect_thermal_images()
+            elif path == '/api/thermal_collection_status':
+                self.handle_thermal_collection_status()
+            elif path == '/api/get_available_collections':
+                self.handle_get_available_collections()
+            elif path == '/api/analyze_thermal_collection':
+                self.handle_analyze_thermal_collection()
             else:
                 self.send_error(404, "Not Found")
                 
@@ -295,6 +314,11 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
             <title>{config.DASHBOARD_TITLE}</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
+                @keyframes pulse {{
+                    0% {{ opacity: 0.5; }}
+                    50% {{ opacity: 1; }}
+                    100% {{ opacity: 0.5; }}
+                }}
                 body {{ 
                     font-family: Arial, sans-serif; 
                     margin: 0; 
@@ -476,7 +500,344 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 }}
                 
                 // Auto-refresh every {config.AUTO_REFRESH_INTERVAL} seconds
-                setInterval(refreshData, {config.AUTO_REFRESH_INTERVAL * 1000});
+                // Skip refresh if user is interacting with analysis controls
+                setInterval(function() {{
+                    const analysisInProgress = document.getElementById('analyzeBtn').innerHTML.includes('Processing') || 
+                                             document.getElementById('analyzeBtn').innerHTML.includes('Analyzing') ||
+                                             document.getElementById('analyzeBtn').innerHTML.includes('Starting');
+                    const dropdownFocused = document.getElementById('analysisCollection') === document.activeElement;
+                    const viewResultsActive = !document.getElementById('viewResultsBtn').disabled;
+                    
+                    if (!analysisInProgress && !dropdownFocused && !viewResultsActive) {{
+                        refreshData();
+                    }}
+                }}, {config.AUTO_REFRESH_INTERVAL * 1000});
+                
+                // Thermal Image Collection Functions
+                function startThermalCollection() {{
+                    const numImages = parseInt(document.getElementById('numImages').value);
+                    const intervalSeconds = parseInt(document.getElementById('intervalSeconds').value);
+                    const button = document.getElementById('collectImagesBtn');
+                    const status = document.getElementById('collectionStatus');
+                    
+                    // Disable button and show progress
+                    button.disabled = true;
+                    button.innerHTML = '⏳ Starting Collection...';
+                    status.innerHTML = `Initializing collection of ${{numImages}} images every ${{intervalSeconds}} seconds...`;
+                    status.style.color = '#ff9800';
+                    
+                    // Send collection request
+                    fetch('/api/collect_thermal_images', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                        }},
+                        body: JSON.stringify({{
+                            num_images: numImages,
+                            interval_seconds: intervalSeconds
+                        }})
+                    }})
+                    .then(response => response.json())
+                    .then(data => {{
+                        if (data.status === 'started') {{
+                            const estimatedTime = data.parameters.estimated_duration_seconds;
+                            status.innerHTML = `✅ Collection started! Capturing ${{numImages}} images every ${{intervalSeconds}}s (Est. ${{estimatedTime}}s total)`;
+                            status.style.color = '#4caf50';
+                            
+                            // Show countdown
+                            let remainingTime = estimatedTime;
+                            const countdown = setInterval(() => {{
+                                remainingTime--;
+                                if (remainingTime > 0) {{
+                                    status.innerHTML = `📸 Collection in progress... (${{remainingTime}}s remaining)`;
+                                }} else {{
+                                    clearInterval(countdown);
+                                    status.innerHTML = '🎉 Collection completed! Check ~/Desktop for thermal_collection_[timestamp] directory';
+                                    status.style.color = '#4caf50';
+                                    button.disabled = false;
+                                    button.innerHTML = '📸 Collect Images';
+                                }}
+                            }}, 1000);
+                            
+                            // Re-enable button after estimated completion time + buffer
+                            setTimeout(() => {{
+                                button.disabled = false;
+                                button.innerHTML = '📸 Collect Images';
+                            }}, (estimatedTime + 5) * 1000);
+                        }} else {{
+                            status.innerHTML = '❌ Failed to start collection: ' + (data.message || 'Unknown error');
+                            status.style.color = '#f44336';
+                            button.disabled = false;
+                            button.innerHTML = '📸 Collect Images';
+                        }}
+                    }})
+                    .catch(error => {{
+                        console.error('Collection error:', error);
+                        status.innerHTML = '❌ Network error during collection request';
+                        status.style.color = '#f44336';
+                        button.disabled = false;
+                        button.innerHTML = '📸 Collect Images';
+                    }});
+                }}
+                
+                // Analysis Functions
+                function refreshCollections() {{
+                    const dropdown = document.getElementById('analysisCollection');
+                    const currentSelection = dropdown.value; // Preserve current selection
+                    
+                    fetch('/api/get_available_collections')
+                    .then(response => response.json())
+                    .then(data => {{
+                        const button = document.getElementById('analyzeBtn');
+                        const viewBtn = document.getElementById('viewResultsBtn');
+                        const statusDiv = document.getElementById('analysisStatus');
+                        
+                        dropdown.innerHTML = '<option value="">Select collection...</option>';
+                        
+                        if (data.collections && data.collections.length > 0) {{
+                            data.collections.forEach(collection => {{
+                                const option = document.createElement('option');
+                                option.value = collection.path;
+                                option.textContent = `${{collection.name}} (${{collection.num_images}} images, ${{collection.size_mb.toFixed(1)}}MB)`;
+                                dropdown.appendChild(option);
+                            }});
+                            
+                            // Restore previous selection if it still exists
+                            if (currentSelection) {{
+                                dropdown.value = currentSelection;
+                            }}
+                            
+                            dropdown.disabled = false;
+                            
+                            // Update button state based on current selection
+                            if (dropdown.value) {{
+                                button.disabled = false;
+                                button.style.opacity = '1';
+                                button.style.cursor = 'pointer';
+                                if (viewBtn.style.display === 'none') {{
+                                    statusDiv.innerHTML = 'Ready to analyze selected collection';
+                                    statusDiv.style.color = '#76b900';
+                                }}
+                            }} else {{
+                                button.disabled = true;
+                                button.style.opacity = '0.6';
+                                button.style.cursor = 'not-allowed';
+                                if (viewBtn.style.display === 'none') {{
+                                    statusDiv.innerHTML = 'Select a collection to analyze thermal images';
+                                    statusDiv.style.color = '#888';
+                                }}
+                            }}
+                            
+                            // Enable analyze button when collection is selected
+                            dropdown.onchange = function() {{
+                                if (this.value) {{
+                                    button.disabled = false;
+                                    button.style.opacity = '1';
+                                    button.style.cursor = 'pointer';
+                                    if (viewBtn.style.display === 'none') {{
+                                        statusDiv.innerHTML = 'Ready to analyze selected collection';
+                                        statusDiv.style.color = '#76b900';
+                                    }}
+                                }} else {{
+                                    button.disabled = true;
+                                    button.style.opacity = '0.6';
+                                    button.style.cursor = 'not-allowed';
+                                    if (viewBtn.style.display === 'none') {{
+                                        statusDiv.innerHTML = 'Select a collection to analyze thermal images';
+                                        statusDiv.style.color = '#888';
+                                    }}
+                                }}
+                            }}
+                        }} else {{
+                            dropdown.innerHTML = '<option value="">No collections found</option>';
+                            dropdown.disabled = true;
+                            button.disabled = true;
+                            button.style.opacity = '0.6';
+                            button.style.cursor = 'not-allowed';
+                            if (viewBtn.style.display === 'none') {{
+                                statusDiv.innerHTML = 'No thermal image collections available. Collect images first.';
+                                statusDiv.style.color = '#888';
+                            }}
+                        }}
+                    }})
+                    .catch(error => {{
+                        console.error('Error fetching collections:', error);
+                        if (document.getElementById('viewResultsBtn').style.display === 'none') {{
+                            document.getElementById('analysisStatus').innerHTML = '&#x274C; Error loading collections';
+                        }}
+                    }});
+                }}
+                
+                function resetAnalyzeButton() {{
+                    const button = document.getElementById('analyzeBtn');
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                    button.style.cursor = 'pointer';
+                    button.innerHTML = '&#x1F4CA; Analyze Images';
+                }}
+                
+                function resetViewResultsButton() {{
+                    const viewBtn = document.getElementById('viewResultsBtn');
+                    viewBtn.disabled = true;
+                    viewBtn.style.background = '#666';
+                    viewBtn.style.color = '#999';
+                    viewBtn.style.cursor = 'not-allowed';
+                    viewBtn.style.opacity = '0.5';
+                    viewBtn.style.pointerEvents = 'none';
+                    viewBtn.style.animation = 'none';
+                    viewBtn.innerHTML = '&#x1F4CB; View Results';
+                }}
+                
+                function analyzeCollection() {{
+                    const dropdown = document.getElementById('analysisCollection');
+                    const button = document.getElementById('analyzeBtn');
+                    const viewBtn = document.getElementById('viewResultsBtn');
+                    const status = document.getElementById('analysisStatus');
+                    
+                    const collectionPath = dropdown.value;
+                    if (!collectionPath) {{
+                        status.innerHTML = '&#x274C; Please select a collection first';
+                        status.style.color = '#f44336';
+                        return;
+                    }}
+                    
+                    // Disable view results button and add pulsing animation during analysis
+                    viewBtn.disabled = true;
+                    viewBtn.style.background = '#666';
+                    viewBtn.style.color = '#999';
+                    viewBtn.style.cursor = 'not-allowed';
+                    viewBtn.style.opacity = '0.5';
+                    viewBtn.style.pointerEvents = 'none';
+                    viewBtn.style.animation = 'pulse 2s infinite';
+                    
+                    button.disabled = true;
+                    button.style.opacity = '0.6';
+                    button.style.cursor = 'not-allowed';
+                    button.innerHTML = '&#x23F3; Starting...';
+                    status.innerHTML = '&#x1F680; Initiating thermal image analysis...';
+                    status.style.color = '#2196f3';
+                    
+                    // Start analysis
+                    fetch('/api/analyze_thermal_collection', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json'
+                        }},
+                        body: JSON.stringify({{
+                            collection_path: collectionPath
+                        }})
+                    }})
+                    .then(response => response.json())
+                    .then(data => {{
+                        console.log('Analysis response:', data);
+                        if (data.status === 'started') {{
+                            status.innerHTML = '&#x1F504; Computing statistics and PCA... Please wait';
+                            button.innerHTML = '&#x1F4CA; Analyzing...';
+                            
+                            // Poll for completion
+                            let pollCount = 0;
+                            const pollInterval = setInterval(() => {{
+                                pollCount++;
+                                const dots = '.'.repeat((pollCount % 4));
+                                const minutes = Math.floor(pollCount * 2 / 60);
+                                const seconds = (pollCount * 2) % 60;
+                                status.innerHTML = '&#x1F9EE; Calculating Stats${{dots}} (${{minutes}}m ${{seconds}}s)';
+                                
+                                fetch('/api/analysis_results')
+                                .then(response => response.json())
+                                .then(results => {{
+                                    console.log('Poll result:', results);
+                                    
+                                    // Check for successful completion
+                                    if (results && results.collection_info && results.statistical_analysis && results.visualizations) {{
+                                        clearInterval(pollInterval);
+                                        status.innerHTML = '&#x2705; Analysis complete! Results are ready';
+                                        status.style.color = '#4caf50';
+                                        
+                                        // Enable and style the view results button
+                                        viewBtn.disabled = false;
+                                        viewBtn.style.background = '#ff9800';
+                                        viewBtn.style.color = 'white';
+                                        viewBtn.style.cursor = 'pointer';
+                                        viewBtn.style.opacity = '1';
+                                        viewBtn.style.pointerEvents = 'auto';
+                                        viewBtn.style.animation = 'none';
+                                        viewBtn.innerHTML = '&#x1F4CB; View Results';
+                                        
+                                        // Update status to indicate results are ready
+                                        status.innerHTML = '&#x2705; Analysis complete! Click "&#x1F4CB; View Results" to see charts';
+                                        status.style.color = '#4caf50';
+                                        
+                                        // Reset analyze button but keep view results button visible
+                                        resetAnalyzeButton();
+                                        
+                                    }} else if (results && results.error) {{
+                                        clearInterval(pollInterval);
+                                        status.innerHTML = '&#x274C; Analysis failed: ' + results.error;
+                                        status.style.color = '#f44336';
+                                        resetAnalyzeButton();
+                                        resetViewResultsButton();
+                                        
+                                    }} else if (pollCount > 60) {{ // 2 minute timeout
+                                        clearInterval(pollInterval);
+                                        status.innerHTML = '&#x23F0; Analysis timeout - please try again';
+                                        status.style.color = '#f44336';
+                                        resetAnalyzeButton();
+                                        resetViewResultsButton();
+                                    }}
+                                }})
+                                .catch(error => {{
+                                    console.error('Polling error:', error);
+                                    if (pollCount > 10) {{
+                                        clearInterval(pollInterval);
+                                        status.innerHTML = '&#x274C; Connection error - please try again';
+                                        status.style.color = '#f44336';
+                                        resetAnalyzeButton();
+                                        resetViewResultsButton();
+                                    }}
+                                }});
+                            }}, 2000); // Poll every 2 seconds
+                            
+                        }} else {{
+                            status.innerHTML = '&#x274C; Failed to start analysis: ' + (data.message || 'Unknown error');
+                            status.style.color = '#f44336';
+                            resetAnalyzeButton();
+                            resetViewResultsButton();
+                        }}
+                    }})
+                    .catch(error => {{
+                        console.error('Analysis error:', error);
+                        status.innerHTML = '&#x274C; Network error during analysis request';
+                        status.style.color = '#f44336';
+                        resetAnalyzeButton();
+                        resetViewResultsButton();
+                    }});
+                }}
+                
+                function viewResults() {{
+                    window.open('/analysis_results', '_blank');
+                }}
+                
+                // Load collections on page load
+                document.addEventListener('DOMContentLoaded', function() {{
+                    refreshCollections();
+                }});
+                
+                function checkThermalCollectionStatus() {{
+                    fetch('/api/thermal_collection_status', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                        }}
+                    }})
+                    .then(response => response.json())
+                    .then(data => {{
+                        console.log('Thermal collection status:', data);
+                    }})
+                    .catch(error => {{
+                        console.error('Status check error:', error);
+                    }});
+                }}
             </script>
         </head>
         <body>
@@ -630,13 +991,73 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
+            <!-- Thermal Image Collection Controls -->
+            <div style="background: #2a2a2a; border: 2px solid #ff9800; border-radius: 10px; padding: 20px; margin: 20px auto; max-width: 800px;">
+                <h3 style="color: #ff9800; text-align: center; margin: 0 0 15px 0;">&#x1F5BC; Thermal Image Collection for Analysis</h3>
+                <div style="display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #fff; font-weight: bold;">Images:</label>
+                        <select id="numImages" style="padding: 5px; border-radius: 5px; border: 1px solid #ff9800; background: #1a1a1a; color: #fff;">
+                            <option value="5">5 images</option>
+                            <option value="10" selected>10 images</option>
+                            <option value="15">15 images</option>
+                            <option value="20">20 images</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="color: #fff; font-weight: bold;">Interval:</label>
+                        <select id="intervalSeconds" style="padding: 5px; border-radius: 5px; border: 1px solid #ff9800; background: #1a1a1a; color: #fff;">
+                            <option value="3">3 seconds</option>
+                            <option value="5" selected>5 seconds</option>
+                            <option value="10">10 seconds</option>
+                            <option value="15">15 seconds</option>
+                        </select>
+                    </div>
+                    <button id="collectImagesBtn" onclick="startThermalCollection()" 
+                            style="background: linear-gradient(135deg, #ff9800, #f57c00); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: all 0.3s;">
+                        &#x1F4F7; Collect Images
+                    </button>
+                </div>
+                <div id="collectionStatus" style="margin-top: 15px; text-align: center; color: #888; font-size: 14px;">
+                    Ready to collect thermal images for statistical analysis
+                </div>
+                <div style="margin-top: 10px; text-align: center; color: #666; font-size: 12px;">
+                    Images saved as .npy files to ~/Desktop/thermal_collection_[timestamp]/
+                </div>
+                
+                <!-- Analysis Section -->
+                <div style="border-top: 1px solid #444; margin-top: 20px; padding-top: 20px;">
+                    <h4 style="color: #76b900; text-align: center; margin: 0 0 15px 0;">&#x1F4C8; Statistical Analysis</h4>
+                    <div style="display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="color: #fff; font-weight: bold;">Collection:</label>
+                            <select id="analysisCollection" style="padding: 5px; border-radius: 5px; border: 1px solid #76b900; background: #1a1a1a; color: #fff; min-width: 200px;">
+                                <option value="">Select collection...</option>
+                            </select>
+                            <button onclick="refreshCollections()" style="background: #444; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                                &#x1F504;
+                            </button>
+                            <button id="analyzeBtn" onclick="analyzeCollection()" style="background: #76b900; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: 10px;" disabled>
+                                &#x1F4CA; Analyze Images
+                            </button>
+                            <button id="viewResultsBtn" onclick="viewResults()" style="background: #666; color: #999; border: none; padding: 8px 16px; border-radius: 4px; cursor: not-allowed; font-size: 14px; margin-left: 10px; opacity: 0.5; pointer-events: none;" disabled>
+                                &#x1F4CB; View Results
+                            </button>
+                        </div>
+                    </div>
+                    <div id="analysisStatus" style="margin-top: 15px; text-align: center; color: #888; font-size: 14px;">
+                        Select a collection to analyze thermal images
+                    </div>
+                </div>
+            </div>
+            
             <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #1e1e1e; border-radius: 8px;">
                 <h3 style="color: #76b900; margin-top: 0;">System Information</h3>
                 <p style="margin: 5px 0;">&#x1F916; <strong>Jetson Orin Nano</strong> - Independent Greenhouse Monitoring</p>
-                <p style="margin: 5px 0;">&#x1F310; Network: {config.JETSON_IP}:{config.JETSON_PORT}</p>
-                <p style="margin: 5px 0;">&#x1F504; Concurrent Operation with BeaglePlay (192.168.1.203:8080)</p>
+                <p style="margin: 5px 0;">&#x1F4F1; Network: {config.JETSON_IP}:{config.JETSON_PORT}</p>
+                <p style="margin: 5px 0;">&#x1F4F2; Concurrent Operation with BeaglePlay (192.168.1.203:8080)</p>
                 <p style="margin: 5px 0;">&#x1F4CA; <a href="/api/sensors" style="color: #76b900;">JSON API</a> | 
-                   &#x1F4C1; <a href="/download/csv" style="color: #76b900;">Download Data</a></p>
+                   &#x1F4BE; <a href="/download/csv" style="color: #76b900;">Download Data</a></p>
             </div>
         </body>
         </html>
@@ -1307,12 +1728,11 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                     background-color: #76b900;
                     color: white;
                     padding: 10px 20px;
-                    border: none;
-                    border-radius: 5px;
-                    cursor: pointer;
                     text-decoration: none;
+                    border-radius: 5px;
+                    margin: 0 10px;
                     display: inline-block;
-                    margin: 10px;
+                    transition: background-color 0.3s;
                 }}
                 
                 .nav-button:hover {{
@@ -1402,6 +1822,435 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 self.send_error(404, "CSV file not found")
         except Exception as e:
             logging.error(f"❌ CSV download error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def handle_collect_thermal_images(self):
+        """Handle thermal image collection request"""
+        try:
+            # Parse request parameters
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length)
+                params = json.loads(post_data.decode('utf-8'))
+            else:
+                params = {}
+            
+            # Get parameters with defaults
+            num_images = params.get('num_images', 10)
+            interval_seconds = params.get('interval_seconds', 5)
+            
+            # Validate parameters
+            if not isinstance(num_images, int) or num_images < 1 or num_images > 50:
+                self.send_error(400, "Invalid num_images parameter (1-50)")
+                return
+            
+            if not isinstance(interval_seconds, int) or interval_seconds < 1 or interval_seconds > 60:
+                self.send_error(400, "Invalid interval_seconds parameter (1-60)")
+                return
+            
+            logging.info(f"🎯 Starting thermal image collection: {num_images} images, {interval_seconds}s intervals")
+            
+            # Start collection in background thread to avoid blocking HTTP response
+            def collect_images():
+                try:
+                    result = self.server_instance.thermal_collector.collect_image_series(
+                        num_images=num_images,
+                        interval_seconds=interval_seconds
+                    )
+                    logging.info(f"✅ Thermal collection completed: {result['images_captured']}/{result['total_requested']} images")
+                except Exception as e:
+                    logging.error(f"❌ Thermal collection error: {e}")
+            
+            collection_thread = threading.Thread(target=collect_images, daemon=True)
+            collection_thread.start()
+            
+            # Send immediate response
+            response_data = {
+                "status": "started",
+                "message": f"Thermal image collection started: {num_images} images, {interval_seconds}s intervals",
+                "parameters": {
+                    "num_images": num_images,
+                    "interval_seconds": interval_seconds,
+                    "estimated_duration_seconds": num_images * interval_seconds
+                }
+            }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode())
+            
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON in request body")
+        except Exception as e:
+            logging.error(f"❌ Thermal collection handler error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def handle_thermal_collection_status(self):
+        """Handle thermal collection status request"""
+        try:
+            status = self.server_instance.thermal_collector.get_collection_status()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(status).encode())
+            
+        except Exception as e:
+            logging.error(f"❌ Thermal collection status error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def handle_get_available_collections(self):
+        """Handle request for available thermal image collections"""
+        try:
+            collections = self.server_instance.thermal_analyzer.get_available_collections()
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps({"collections": collections}).encode())
+            
+        except Exception as e:
+            logging.error(f"❌ Get collections error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def handle_analyze_thermal_collection(self):
+        """Handle thermal image collection analysis request"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            collection_path = params.get('collection_path')
+            if not collection_path:
+                self.send_error(400, "Missing collection_path parameter")
+                return
+            
+            # Perform analysis in background thread to avoid blocking
+            def analyze_collection():
+                try:
+                    analysis_results = self.server_instance.thermal_analyzer.analyze_image_collection(collection_path)
+                    # Store results for retrieval
+                    self.server_instance.latest_analysis = analysis_results
+                    logging.info(f"✅ Analysis complete for collection: {collection_path}")
+                except Exception as e:
+                    logging.error(f"❌ Analysis failed: {e}")
+                    self.server_instance.latest_analysis = {"error": str(e)}
+            
+            analysis_thread = threading.Thread(target=analyze_collection, daemon=True)
+            analysis_thread.start()
+            
+            # Send immediate response
+            response_data = {
+                "status": "started",
+                "message": "Analysis started in background",
+                "collection_path": collection_path
+            }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode())
+            
+        except Exception as e:
+            logging.error(f"❌ Analysis handler error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def serve_analysis_results_api(self):
+        """Serve analysis results as JSON API"""
+        try:
+            if hasattr(self.server_instance, 'latest_analysis') and self.server_instance.latest_analysis:
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(self.server_instance.latest_analysis).encode())
+            else:
+                self.send_response(404)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "No analysis results available"}).encode())
+        except Exception as e:
+            logging.error(f"❌ Analysis results API error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def serve_analysis_results(self):
+        """Serve analysis results HTML page"""
+        try:
+            if not hasattr(self.server_instance, 'latest_analysis') or not self.server_instance.latest_analysis:
+                self.send_error(404, "No analysis results available")
+                return
+            
+            results = self.server_instance.latest_analysis
+            
+            if 'error' in results:
+                self.send_error(500, f"Analysis error: {results['error']}")
+                return
+            
+            # Generate HTML page with results
+            html = self._generate_analysis_results_html(results)
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(html.encode())
+            
+        except Exception as e:
+            logging.error(f"❌ Analysis results page error: {e}")
+            self.send_error(500, "Internal Server Error")
+    
+    def _generate_analysis_results_html(self, results):
+        """Generate comprehensive HTML page for analysis results"""
+        collection_info = results['collection_info']
+        stats = results['statistical_analysis']
+        pca = results['pca_analysis']
+        viz = results['visualizations']
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Thermal Image Analysis Results</title>
+            <style>
+                body {{
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+                    color: #ffffff;
+                    line-height: 1.6;
+                }}
+                .container {{
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }}
+                .header {{
+                    text-align: center;
+                    margin-bottom: 40px;
+                    padding: 30px;
+                    background: linear-gradient(135deg, #ff9800, #f57c00);
+                    border-radius: 15px;
+                    box-shadow: 0 8px 32px rgba(255, 152, 0, 0.3);
+                }}
+                .header h1 {{
+                    margin: 0;
+                    font-size: 2.5em;
+                    font-weight: bold;
+                }}
+                .info-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 40px;
+                }}
+                .info-card {{
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 25px;
+                    border-radius: 15px;
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    backdrop-filter: blur(10px);
+                }}
+                .info-card h3 {{
+                    color: #ff9800;
+                    margin-top: 0;
+                    font-size: 1.3em;
+                }}
+                .stat-value {{
+                    font-size: 1.8em;
+                    font-weight: bold;
+                    color: #76b900;
+                    margin: 10px 0;
+                }}
+                .visualization {{
+                    text-align: center;
+                    margin: 40px 0;
+                    padding: 30px;
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 15px;
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                }}
+                .visualization h3 {{
+                    color: #76b900;
+                    margin-bottom: 20px;
+                    font-size: 1.5em;
+                }}
+                .visualization img {{
+                    max-width: 100%;
+                    height: auto;
+                    border-radius: 10px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                }}
+                .stats-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                    background: rgba(255, 255, 255, 0.05);
+                    border-radius: 10px;
+                    overflow: hidden;
+                }}
+                .stats-table th, .stats-table td {{
+                    padding: 15px;
+                    text-align: left;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                }}
+                .stats-table th {{
+                    background: rgba(255, 152, 0, 0.2);
+                    color: #ff9800;
+                    font-weight: bold;
+                }}
+                .back-button {{
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: linear-gradient(135deg, #76b900, #5a8a00);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 25px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    text-decoration: none;
+                    box-shadow: 0 4px 15px rgba(118, 185, 0, 0.3);
+                    transition: all 0.3s;
+                }}
+                .back-button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(118, 185, 0, 0.4);
+                }}
+                .pca-summary {{
+                    background: linear-gradient(135deg, #76b900, #5a8a00);
+                    padding: 20px;
+                    border-radius: 10px;
+                    margin: 20px 0;
+                }}
+            </style>
+        </head>
+        <body>
+            <a href="javascript:window.close()" class="back-button">✕ Close</a>
+            
+            <div class="container">
+                <div class="header">
+                    <h1>&#x1F4CA; Thermal Image Analysis Results</h1>
+                    <p>Statistical Analysis & Principal Component Analysis</p>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>&#x1F4C1; Collection Information</h3>
+                        <p><strong>Path:</strong> {collection_info['path']}</p>
+                        <p><strong>Images:</strong> {collection_info['num_images']}</p>
+                        <p><strong>Resolution:</strong> {collection_info['image_shape'][0]}×{collection_info['image_shape'][1]}</p>
+                        <p><strong>Analyzed:</strong> {collection_info['analysis_timestamp'][:19].replace('T', ' ')}</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h3>&#x1F321;&#xFE0F; Temperature Statistics</h3>
+                        <p>Mean: <span class="stat-value">{stats['global_statistics']['mean']:.2f}°C</span></p>
+                        <p>Median: <span class="stat-value">{stats['global_statistics']['median']:.2f}°C</span></p>
+                        <p>Mode: <span class="stat-value">{stats['global_statistics']['mode']:.2f}°C</span></p>
+                        <p>Std Dev: <span class="stat-value">{stats['global_statistics']['std']:.2f}°C</span></p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h3>&#x1F4C8; PCA Summary</h3>
+                        <p>Total Components: <span class="stat-value">{pca['n_components']}</span></p>
+                        <p>95% Variance: <span class="stat-value">{pca['n_components_95_variance']}</span> components</p>
+                        <p>PC1 Variance: <span class="stat-value">{pca['explained_variance_ratio'][0]*100:.1f}%</span></p>
+                        <p>PC2 Variance: <span class="stat-value">{pca['explained_variance_ratio'][1]*100:.1f}%</span></p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h3>&#x1F4CF; Data Distribution</h3>
+                        <p>Range: <span class="stat-value">{stats['global_statistics']['min']:.1f}°C - {stats['global_statistics']['max']:.1f}°C</span></p>
+                        <p>Q25-Q75: <span class="stat-value">{stats['global_statistics']['q25']:.1f}°C - {stats['global_statistics']['q75']:.1f}°C</span></p>
+                        <p>Skewness: <span class="stat-value">{stats['global_statistics']['skewness']:.3f}</span></p>
+                        <p>Kurtosis: <span class="stat-value">{stats['global_statistics']['kurtosis']:.3f}</span></p>
+                    </div>
+                </div>
+        """
+        
+        # Add visualizations
+        for viz_name, viz_data in viz.items():
+            viz_title = viz_name.replace('_', ' ').title()
+            html += f"""
+                <div class="visualization">
+                    <h3>{viz_title}</h3>
+                    <img src="data:image/png;base64,{viz_data}" alt="{viz_title}">
+                </div>
+            """
+        
+        # Add per-image statistics table
+        html += f"""
+                <div class="visualization">
+                    <h3>Per-Image Statistics</h3>
+                    <table class="stats-table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Mean (°C)</th>
+                                <th>Median (°C)</th>
+                                <th>Mode (°C)</th>
+                                <th>Std Dev (°C)</th>
+                                <th>Min (°C)</th>
+                                <th>Max (°C)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        """
+        
+        for i, img_stats in enumerate(stats['per_image_statistics']):
+            html += f"""
+                            <tr>
+                                <td>Image {i+1}</td>
+                                <td>{img_stats['mean']:.2f}</td>
+                                <td>{img_stats['median']:.2f}</td>
+                                <td>{img_stats['mode']:.2f}</td>
+                                <td>{img_stats['std']:.2f}</td>
+                                <td>{img_stats['min']:.2f}</td>
+                                <td>{img_stats['max']:.2f}</td>
+                            </tr>
+            """
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+    
+    def handle_set_processing_strategy(self):
+        """Handle thermal processing strategy change request"""
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length)
+                params = json.loads(post_data.decode('utf-8'))
+            else:
+                params = {}
+            
+            strategy = params.get('strategy', 'basic')
+            success = self.server_instance.thermal_processor.set_processing_strategy(strategy)
+            
+            response_data = {
+                "status": "success" if success else "error",
+                "strategy": strategy,
+                "message": f"Processing strategy {'set to' if success else 'failed to set to'} {strategy}"
+            }
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(response_data).encode())
+            
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON in request body")
+        except Exception as e:
+            logging.error(f"❌ Processing strategy handler error: {e}")
             self.send_error(500, "Internal Server Error")
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):

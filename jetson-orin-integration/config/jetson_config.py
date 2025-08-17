@@ -5,7 +5,7 @@ Independent greenhouse monitoring system configuration
 """
 
 # Network Configuration
-JETSON_IP = "192.168.1.75"
+JETSON_IP = "127.0.0.1"  # Use localhost for development
 JETSON_PORT = 8082
 
 # Sensor Configuration
@@ -24,7 +24,7 @@ LOG_INTERVAL = 300  # 5 minutes
 DATA_RETENTION_DAYS = 90
 
 # Data Storage Paths
-DATA_DIR = "/home/lionel/greenhouse-data"
+DATA_DIR = "/home/lio/greenhouse-data"
 CSV_FILE = "jetson_sensor_data.csv"
 JSON_FILE = "jetson_latest_data.json"
 
@@ -49,7 +49,7 @@ THEME = "dark"
 
 # System Settings
 LOG_LEVEL = "INFO"
-LOG_FILE = "/home/lionel/jetson-greenhouse.log"
+LOG_FILE = "/home/lio/jetson-greenhouse.log"
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
 BACKUP_COUNT = 5
 

@@ -113,7 +113,12 @@ python src/jetson_greenhouse_server.py
 - `GET /thermal_image.png` - Real-time thermal image
 - `GET /thermal_data.npy` - Thermal data in numpy format
 - `GET /api/thermal_pixel_data` - Thermal pixel data for interactions
+- `GET /api/get_available_collections` - List thermal image collections
+- `GET /api/analysis_results` - Get thermal analysis results
 - `POST /api/set_processing_strategy` - Change thermal processing method
+- `POST /api/collect_thermal_images` - Start thermal image collection
+- `POST /api/thermal_collection_status` - Get collection status
+- `POST /api/analyze_thermal_collection` - Analyze thermal image collection
 
 ## Configuration
 
@@ -162,6 +167,14 @@ DATA_DIR = "/home/lionel/greenhouse-data"
 - **Temperature History**: View original and current temperatures for recorded pixels
 - **Smooth Refresh**: Flicker-free image updates using preloading
 - **Professional UI**: Dark theme with temperature colorbar and statistics
+
+### Thermal Image Collection & Analysis
+- **Automated Collection**: Collect multiple thermal images at specified intervals
+- **Collection Management**: View and select from available thermal image collections
+- **Statistical Analysis**: Comprehensive temperature statistics with PCA analysis
+- **Interactive Visualizations**: Temperature distributions, histograms, and correlation plots
+- **Persistent Results**: Analysis results preserved until manually cleared
+- **Smart Auto-refresh**: Pauses during analysis and when results are available
 
 ### Data Logging
 - **CSV Format**: Complete sensor data every 5 minutes
@@ -271,12 +284,15 @@ sudo fuser -k 8082/tcp
 ```
 jetson-orin-integration/
 ├── src/
-│   ├── jetson_greenhouse_server.py    # Main server
+│   ├── jetson_greenhouse_server.py    # Main server with thermal analysis
 │   ├── sensor_manager.py              # Sensor communication
 │   ├── thermal_processor.py           # Image processing
+│   ├── thermal_image_analyzer.py      # Statistical analysis & PCA
+│   ├── thermal_image_collector.py     # Automated image collection
 │   └── vpd_calculator.py              # VPD calculations
 ├── config/
 │   └── jetson_config.py               # Configuration
+├── templates/                         # HTML templates (if any)
 ├── requirements.txt                   # Dependencies
 ├── install.sh                         # Installation script
 └── README.md                          # This file

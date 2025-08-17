@@ -1,5 +1,61 @@
 # Greenhouse Monitoring System - Changelog
 
+## [3.1.0] - 2025-08-17 - 🔬 Jetson Thermal Image Analysis & UI Stability Fixes
+
+### 🚀 **Jetson Orin Nano Thermal Analysis System**
+
+#### ✅ **Thermal Image Collection & Analysis**
+- **Automated Collection**: Collect multiple thermal images at specified intervals (1-100 images, 1-60 second intervals)
+- **Collection Management**: View and select from available thermal image collections via dropdown
+- **Statistical Analysis**: Comprehensive temperature statistics with PCA analysis and correlation matrices
+- **Interactive Visualizations**: Temperature distributions, histograms, scatter plots, and heatmaps
+- **Results Persistence**: Analysis results preserved until manually cleared or new analysis started
+
+#### 🎨 **Enhanced User Interface Stability**
+- **Dropdown Selection Persistence**: Fixed collection dropdown resetting during auto-refresh cycles
+- **Smart Auto-refresh Logic**: Pauses refresh during analysis and when results are available
+- **View Results Button Behavior**: Fixed premature disappearing and auto-opening issues
+- **Character Encoding Fixes**: Replaced Unicode symbols with HTML entities for consistent display
+- **Professional Button States**: Proper disabled/enabled states with visual feedback and animations
+
+#### 🔧 **API Endpoint Corrections**
+- **Fixed Collection Loading**: Corrected `/api/get_available_collections` endpoint routing for GET requests
+- **Proper Response Format**: Fixed JSON response format to match frontend expectations
+- **Enhanced Error Handling**: Improved error messages and fallback behavior for failed requests
+
+#### 📊 **Advanced Thermal Analysis Features**
+- **Principal Component Analysis**: PCA visualization with explained variance ratios
+- **Statistical Summaries**: Min, max, mean, median, std deviation across all collected images
+- **Temperature Distribution Analysis**: Histograms and kernel density estimation plots
+- **Correlation Analysis**: Temperature correlation matrices between different collection timepoints
+- **Data Export Ready**: Analysis results structured for future CSV/JSON export capabilities
+
+#### 🛠️ **Technical Implementation**
+- **New Components**:
+  - `thermal_image_analyzer.py`: Statistical analysis engine with scikit-learn integration
+  - `thermal_image_collector.py`: Automated image collection with progress tracking
+  - Enhanced `jetson_greenhouse_server.py`: Integrated thermal analysis workflow
+- **Dependencies Added**: scikit-learn, seaborn, matplotlib for advanced analysis and visualization
+- **Robust Error Handling**: Comprehensive exception handling for analysis pipeline failures
+
+#### 🌐 **Deployment & Service Management**
+- **Production Deployment**: Successfully deployed to Jetson Orin Nano (192.168.1.75:8082)
+- **Service Integration**: Proper systemd service management with automatic restart capabilities
+- **Remote Management**: SSH-based deployment and service control with password authentication
+- **Log Monitoring**: Comprehensive logging for troubleshooting and performance monitoring
+
+### 🗂️ **Files Added/Modified**
+- **NEW**: `jetson-orin-integration/src/thermal_image_analyzer.py` - Statistical analysis engine
+- **NEW**: `jetson-orin-integration/src/thermal_image_collector.py` - Automated collection system
+- **UPDATED**: `jetson-orin-integration/src/jetson_greenhouse_server.py` - Integrated thermal analysis workflow
+- **UPDATED**: `jetson-orin-integration/README.md` - Enhanced documentation with new API endpoints
+- **UPDATED**: `jetson-orin-integration/requirements.txt` - Added analysis dependencies
+
+### 🏆 **Achievement Summary**
+**JETSON SYSTEM STATUS**: 🟢 **THERMAL ANALYSIS OPERATIONAL**
+
+The Jetson Orin Nano greenhouse monitoring system now provides comprehensive thermal image analysis capabilities with a stable, professional user interface. Users can collect thermal image datasets, perform statistical analysis, and visualize results through an intuitive web interface that maintains state properly during auto-refresh cycles.
+
 ## [3.0.0] - 2025-07-26 - 🎉 Feather S3[D] Precision Sensors Integration Complete
 
 ### 🚀 MAJOR SYSTEM UPGRADE - Production Ready
