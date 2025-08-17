@@ -1,0 +1,43 @@
+# Jetson Orin Nano Greenhouse Monitoring Requirements
+# Python dependencies for independent greenhouse monitoring system
+
+# Core web framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# HTTP requests and networking
+requests==2.31.0
+urllib3==2.0.7
+
+# Scientific computing and image processing
+numpy==1.24.3
+scipy==1.11.4
+matplotlib==3.7.2
+
+# Computer vision (OpenCV)
+opencv-python==4.8.1.78
+
+# Serial communication (fallback for Feather S3[D])
+pyserial==3.5
+
+# Data handling
+pandas==2.0.3
+
+# System monitoring
+psutil==5.9.6
+
+# Configuration and utilities
+python-dotenv==1.0.0
+pyyaml==6.0.1
+
+# Logging enhancements
+colorlog==6.7.0
+
+# Development and testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Optional: Machine learning (for future enhancements)
+# scikit-learn==1.3.2
+# torch==2.1.0
+# torchvision==0.16.0
