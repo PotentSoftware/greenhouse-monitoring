@@ -158,6 +158,7 @@ DATA_DIR = "/home/lionel/greenhouse-data"
 - **OpenCV Simple**: Threshold-based region detection
 - **Pluggable Architecture**: Easy to add new processing strategies
 - **Negative Pixel Filtering**: Automatic faulty pixel exclusion
+- **Advanced Segmentation**: CUDA-accelerated thermal segmentation and analysis
 
 ### Interactive Thermal Viewer
 - **Real-time Thermal Imaging**: Live thermal camera feed with auto-refresh

@@ -1,0 +1,29 @@
+[Unit]
+Description=Jetson Greenhouse Streamlit Dashboard
+After=network.target
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=lio
+Group=lio
+WorkingDirectory=/home/lio/github/greenhouse-monitoring/jetson-orin-integration
+Environment=PATH=/home/lio/github/greenhouse-monitoring/jetson-orin-integration/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/lio/github/greenhouse-monitoring/jetson-orin-integration/venv/bin/streamlit run streamlit_dashboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=jetson-streamlit
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=200%
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

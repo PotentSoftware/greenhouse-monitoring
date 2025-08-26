@@ -29,6 +29,20 @@ import base64
 # Import our modules
 from sensor_manager import SensorManager
 from vpd_calculator import VPDCalculator
+from time_series_plotter import TimeSeriesPlotter
+import jetson_config as config
+
+# Thermal integration - handle import errors gracefully
+try:
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'thermal_segmentation'))
+    from thermal_integration import create_thermal_integration
+    THERMAL_FOLIAGE_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Thermal foliage segmentation not available: {e}")
+    THERMAL_FOLIAGE_AVAILABLE = False
+    def create_thermal_integration():
+        return None
+from vpd_calculator import VPDCalculator
 from thermal_processor import ThermalProcessor
 from thermal_image_collector import ThermalImageCollector
 from thermal_image_analyzer import ThermalImageAnalyzer
@@ -49,9 +63,14 @@ class JetsonGreenhouseServer:
         self.config = config
         self.sensor_manager = SensorManager(config)
         self.vpd_calculator = VPDCalculator()
+        
+        # Initialize time series plotter
+        csv_path = os.path.join(config.DATA_DIR, config.CSV_FILE)
+        self.plotter = TimeSeriesPlotter(csv_path, max_hours=2)
         self.thermal_processor = ThermalProcessor(config)
         self.thermal_collector = ThermalImageCollector(config, self.sensor_manager)
         self.thermal_analyzer = ThermalImageAnalyzer()
+        self.thermal_foliage = create_thermal_integration() if THERMAL_FOLIAGE_AVAILABLE else None
         self.latest_analysis = None  # Store latest analysis results
         
         # Initialize data storage
@@ -101,6 +120,47 @@ class JetsonGreenhouseServer:
                     thermal_processing = self.thermal_processor.process_thermal_image(thermal_image)
                     canopy_temp = self.thermal_processor.get_canopy_temperature(thermal_image)
                     thermal_processing["canopy_temperature"] = canopy_temp
+                    
+                    # Calculate foliage temperature using thermal segmentation
+                    if self.thermal_foliage is not None:
+                        try:
+                            foliage_result = self.thermal_foliage.get_foliage_temperature()
+                            thermal_processing["foliage_temperature"] = foliage_result.get("foliage_temperature", 0.0)
+                            thermal_processing["foliage_segmentation"] = {
+                                "segmentation_ratio": foliage_result.get("segmentation_ratio", 0.0),
+                                "num_components": foliage_result.get("num_components", 0),
+                                "processing_time": foliage_result.get("processing_time", 0.0),
+                                "cuda_used": foliage_result.get("cuda_used", False),
+                                "status": foliage_result.get("status", "unknown")
+                            }
+                        except Exception as e:
+                            logging.warning(f"Foliage temperature calculation failed: {e}")
+                            thermal_processing["foliage_temperature"] = 0.0
+                            thermal_processing["foliage_segmentation"] = {
+                                "segmentation_ratio": 0.0,
+                                "num_components": 0,
+                                "processing_time": 0.0,
+                                "cuda_used": False,
+                                "status": "error"
+                            }
+                    else:
+                        thermal_processing["foliage_temperature"] = 0.0
+                        thermal_processing["foliage_segmentation"] = {
+                            "segmentation_ratio": 0.0,
+                            "num_components": 0,
+                            "processing_time": 0.0,
+                            "cuda_used": False,
+                            "status": "unavailable"
+                        }
+                
+                # Add foliage temperature to sensor data for VPD calculation
+                if "foliage_temperature" in thermal_processing:
+                    sensor_data["foliage_temperature"] = {
+                        "temperature": thermal_processing["foliage_temperature"]
+                    }
+                
+                # Recalculate VPD with foliage temperature
+                vpd_data = self.vpd_calculator.calculate_all_vpd_types(sensor_data)
                 
                 # Update combined data
                 self.current_data = {
@@ -128,11 +188,13 @@ class JetsonGreenhouseServer:
         try:
             timestamp = datetime.now().isoformat()
             
-            # Prepare CSV data
-            sensors = self.current_data["sensors"]
-            vpd = self.current_data["vpd"]
+            # Get current sensor data
+            data = self.current_data
+            sensors = data["sensors"]
+            vpd = data["vpd"]
+            thermal_processing = data.get("thermal_processing", {})
             
-            # Feather S3[D] data
+            # Extract sensor values
             sht45_temp = sensors["feather_s3d"]["sht45"].get("temperature")
             sht45_humidity = sensors["feather_s3d"]["sht45"].get("humidity")
             hdc3022_temp = sensors["feather_s3d"]["hdc3022"].get("temperature")
@@ -140,7 +202,7 @@ class JetsonGreenhouseServer:
             avg_temp = sensors["feather_s3d"]["averages"].get("temperature")
             avg_humidity = sensors["feather_s3d"]["averages"].get("humidity")
             
-            # Thermal camera data
+            # Thermal data
             thermal_min = sensors["thermal_camera"].get("min_temp")
             thermal_max = sensors["thermal_camera"].get("max_temp")
             thermal_avg = sensors["thermal_camera"].get("avg_temp")
@@ -152,6 +214,15 @@ class JetsonGreenhouseServer:
             canopy_vpd_avg = vpd.get("canopy_vpd_avg")
             thermal_vpd = vpd.get("thermal_vpd")
             
+            # Foliage data
+            foliage_temperature = thermal_processing.get("foliage_temperature", 0.0)
+            foliage_segmentation = thermal_processing.get("foliage_segmentation", {})
+            segmentation_ratio = foliage_segmentation.get("segmentation_ratio", 0.0)
+            enhanced_vpd_foliage = vpd.get("enhanced_vpd_foliage", 0.0)
+            
+            # Ensure data directory exists
+            os.makedirs(config.DATA_DIR, exist_ok=True)
+            
             # CSV logging
             csv_file = os.path.join(config.DATA_DIR, config.CSV_FILE)
             csv_row = [
@@ -160,19 +231,21 @@ class JetsonGreenhouseServer:
                 hdc3022_temp, hdc3022_humidity,
                 avg_temp, avg_humidity,
                 thermal_min, thermal_max, thermal_avg, thermal_modal,
-                air_vpd, enhanced_vpd, canopy_vpd_avg, thermal_vpd
+                air_vpd, enhanced_vpd, canopy_vpd_avg, thermal_vpd,
+                foliage_temperature, segmentation_ratio, enhanced_vpd_foliage
             ]
             
             # Write CSV header if file doesn't exist
+            header = [
+                "timestamp",
+                "sht45_temp", "sht45_humidity",
+                "hdc3022_temp", "hdc3022_humidity", 
+                "avg_temp", "avg_humidity",
+                "thermal_min", "thermal_max", "thermal_avg", "thermal_modal",
+                "air_vpd", "enhanced_vpd", "canopy_vpd_avg", "thermal_vpd",
+                "foliage_temperature", "segmentation_ratio", "enhanced_vpd_foliage"
+            ]
             if not os.path.exists(csv_file):
-                header = [
-                    "timestamp",
-                    "sht45_temp", "sht45_humidity",
-                    "hdc3022_temp", "hdc3022_humidity", 
-                    "avg_temp", "avg_humidity",
-                    "thermal_min", "thermal_max", "thermal_avg", "thermal_modal",
-                    "air_vpd", "enhanced_vpd", "canopy_vpd_avg", "thermal_vpd"
-                ]
                 with open(csv_file, 'w') as f:
                     f.write(','.join(header) + '\n')
             
@@ -221,6 +294,8 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 self.serve_csv_download()
             elif path == '/plots':
                 self.serve_plots_page()
+            elif path == '/api/plots':
+                self.serve_plots_api()
             elif path == '/api/sensors':
                 self.serve_sensor_data()
             elif path == '/health':
@@ -272,6 +347,9 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
         sensors = data["sensors"]
         vpd = data["vpd"]
         
+        # Generate time series plots
+        plots = self.server_instance.plotter.generate_all_plots()
+        
         # Extract sensor values with defaults
         sht45_temp = sensors["feather_s3d"]["sht45"].get("temperature", 0.0)
         sht45_humidity = sensors["feather_s3d"]["sht45"].get("humidity", 0.0)
@@ -285,19 +363,27 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
         thermal_max = sensors["thermal_camera"].get("max_temp", 0.0)
         thermal_avg = sensors["thermal_camera"].get("avg_temp", 0.0)
         thermal_modal = sensors["thermal_camera"].get("modal_temp", 0.0)
+        thermal_median = sensors["thermal_camera"].get("median_temp", 0.0)
+        
+        # Foliage temperature from thermal processing
+        thermal_processing = data.get("thermal_processing", {})
+        foliage_temp = thermal_processing.get("foliage_temperature", 0.0)
+        foliage_segmentation = thermal_processing.get("foliage_segmentation", {})
+        foliage_ratio = foliage_segmentation.get("segmentation_ratio", 0.0)
+        foliage_components = foliage_segmentation.get("num_components", 0)
+        foliage_processing_time = foliage_segmentation.get("processing_time", 0.0)
+        foliage_cuda_used = foliage_segmentation.get("cuda_used", False)
+        foliage_status = foliage_segmentation.get("status", "unknown")
         
         # VPD data
         air_vpd = vpd.get("air_vpd", 0.0)
         enhanced_vpd = vpd.get("enhanced_vpd", 0.0)
         canopy_vpd = vpd.get("canopy_vpd_avg", 0.0)
         
-        # Enhanced VPD calculations
-        enhanced_vpd_avg_sht45 = vpd.get("enhanced_vpd_avg_sht45", 0.0)
-        enhanced_vpd_avg_hdc3022 = vpd.get("enhanced_vpd_avg_hdc3022", 0.0)
-        enhanced_vpd_avg_avg = vpd.get("enhanced_vpd_avg_avg", 0.0)
-        enhanced_vpd_modal_sht45 = vpd.get("enhanced_vpd_modal_sht45", 0.0)
-        enhanced_vpd_modal_hdc3022 = vpd.get("enhanced_vpd_modal_hdc3022", 0.0)
-        enhanced_vpd_modal_avg = vpd.get("enhanced_vpd_modal_avg", 0.0)
+        # Enhanced VPD calculation using foliage temperature
+        enhanced_vpd_foliage = vpd.get("enhanced_vpd_foliage", 0.0)
+        if enhanced_vpd_foliage is None:
+            enhanced_vpd_foliage = 0.0
         
         # Connection status
         feather_status = sensors["feather_s3d"]["connection_status"]
@@ -311,6 +397,7 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <title>{config.DASHBOARD_TITLE}</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
@@ -463,6 +550,19 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 
                 .vpd-section {{ background-color: #1a237e; }}
                 .vpd-value {{ color: #2196f3; }}
+                
+                .greenhouse-section {{ background-color: #2d1b00; }}
+                .greenhouse-value {{ color: #ff9800; }}
+                .greenhouse-vpd {{ background-color: #1a237e; }}
+                .greenhouse-vpd-value {{ color: #64b5f6; }}
+                
+                .tankroom-section {{ background-color: #0d4f3c; }}
+                .tankroom-value {{ color: #4caf50; }}
+                .tankroom-vpd {{ background-color: #0d47a1; }}
+                .tankroom-vpd-value {{ color: #42a5f5; }}
+                
+                .foliage-section {{ background-color: #2e7d32; }}
+                .foliage-value {{ color: #81c784; }}
                 
                 .enhanced-section {{ background-color: #0d4f3c; }}
                 .enhanced-value {{ color: #4caf50; }}
@@ -757,44 +857,20 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                                         // Enable and style the view results button
                                         viewBtn.disabled = false;
                                         viewBtn.style.background = '#ff9800';
-                                        viewBtn.style.color = 'white';
-                                        viewBtn.style.cursor = 'pointer';
-                                        viewBtn.style.opacity = '1';
-                                        viewBtn.style.pointerEvents = 'auto';
-                                        viewBtn.style.animation = 'none';
-                                        viewBtn.innerHTML = '&#x1F4CB; View Results';
                                         
-                                        // Update status to indicate results are ready
-                                        status.innerHTML = '&#x2705; Analysis complete! Click "&#x1F4CB; View Results" to see charts';
-                                        status.style.color = '#4caf50';
-                                        
-                                        // Reset analyze button but keep view results button visible
-                                        resetAnalyzeButton();
-                                        
-                                    }} else if (results && results.error) {{
-                                        clearInterval(pollInterval);
-                                        status.innerHTML = '&#x274C; Analysis failed: ' + results.error;
-                                        status.style.color = '#f44336';
-                                        resetAnalyzeButton();
-                                        resetViewResultsButton();
-                                        
-                                    }} else if (pollCount > 60) {{ // 2 minute timeout
-                                        clearInterval(pollInterval);
-                                        status.innerHTML = '&#x23F0; Analysis timeout - please try again';
+                                    }} else {{
+                                        status.innerHTML = '&#x274C; Failed to start analysis: ' + (data.message || 'Unknown error');
                                         status.style.color = '#f44336';
                                         resetAnalyzeButton();
                                         resetViewResultsButton();
                                     }}
                                 }})
                                 .catch(error => {{
-                                    console.error('Polling error:', error);
-                                    if (pollCount > 10) {{
-                                        clearInterval(pollInterval);
-                                        status.innerHTML = '&#x274C; Connection error - please try again';
-                                        status.style.color = '#f44336';
-                                        resetAnalyzeButton();
-                                        resetViewResultsButton();
-                                    }}
+                                    console.error('Analysis error:', error);
+                                    status.innerHTML = '&#x274C; Network error during analysis request';
+                                    status.style.color = '#f44336';
+                                    resetAnalyzeButton();
+                                    resetViewResultsButton();
                                 }});
                             }}, 2000); // Poll every 2 seconds
                             
@@ -864,49 +940,43 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
-            <h1 style="color: #76b900; text-align: center; margin: 20px 0;">
-                &#x1F916; Jetson Orin Nano Greenhouse Monitor
-            </h1>
             
+            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Greenhouse (SHT45 Sensor)</h2>
             <div class="dashboard-container">
-                <div class="sensor-box">
-                    <h2>SHT45 Temperature</h2>
-                    <div class="sensor-value">{sht45_temp:.1f} &deg;C</div>
+                <div class="sensor-box greenhouse-section">
+                    <h2>Temperature</h2>
+                    <div class="sensor-value greenhouse-value">{sht45_temp:.1f} &deg;C</div>
                 </div>
                 
-                <div class="sensor-box">
-                    <h2>SHT45 Humidity</h2>
-                    <div class="sensor-value">{sht45_humidity:.1f} %RH</div>
+                <div class="sensor-box greenhouse-section">
+                    <h2>Humidity</h2>
+                    <div class="sensor-value greenhouse-value">{sht45_humidity:.1f} %RH</div>
                 </div>
                 
-                <div class="sensor-box">
-                    <h2>HDC3022 Temperature</h2>
-                    <div class="sensor-value">{hdc3022_temp:.1f} &deg;C</div>
-                </div>
-                
-                <div class="sensor-box">
-                    <h2>HDC3022 Humidity</h2>
-                    <div class="sensor-value">{hdc3022_humidity:.1f} %RH</div>
-                </div>
-            </div>
-            
-            <h2 style="color: #2196f3; text-align: center; margin: 20px 0;">Averaged Sensor Data</h2>
-            <div class="dashboard-container">
-                <div class="sensor-box vpd-section">
-                    <h2>Average Temperature</h2>
-                    <div class="sensor-value vpd-value">{avg_temp:.1f} &deg;C</div>
-                </div>
-                
-                <div class="sensor-box vpd-section">
-                    <h2>Average Humidity</h2>
-                    <div class="sensor-value vpd-value">{avg_humidity:.1f} %RH</div>
-                </div>
-                
-                <div class="sensor-box vpd-section">
+                <div class="sensor-box greenhouse-vpd">
                     <h2>Air VPD</h2>
-                    <div class="sensor-value vpd-value">{air_vpd:.2f} kPa</div>
+                    <div class="sensor-value greenhouse-vpd-value">{vpd.get('sht45_vpd', 0.0):.2f} kPa</div>
                 </div>
             </div>
+            
+            <h2 style="color: #4caf50; text-align: center; margin: 20px 0;">Tank Room (HDC3022 Sensor)</h2>
+            <div class="dashboard-container">
+                <div class="sensor-box tankroom-section">
+                    <h2>Temperature</h2>
+                    <div class="sensor-value tankroom-value">{hdc3022_temp:.1f} &deg;C</div>
+                </div>
+                
+                <div class="sensor-box tankroom-section">
+                    <h2>Humidity</h2>
+                    <div class="sensor-value tankroom-value">{hdc3022_humidity:.1f} %RH</div>
+                </div>
+                
+                <div class="sensor-box tankroom-vpd">
+                    <h2>Air VPD</h2>
+                    <div class="sensor-value tankroom-vpd-value">{vpd.get('hdc3022_vpd', 0.0):.2f} kPa</div>
+                </div>
+            </div>
+            
             
             <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Thermal Camera Data</h2>
             <div class="dashboard-container">
@@ -921,74 +991,42 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="sensor-box thermal-section">
-                    <h2>Average Temperature</h2>
+                    <h2>Mean Temperature</h2>
                     <div class="sensor-value thermal-value">{thermal_avg:.1f} &deg;C</div>
+                </div>
+                
+                <div class="sensor-box thermal-section">
+                    <h2>Median Temperature</h2>
+                    <div class="sensor-value thermal-value">{thermal_median:.1f} &deg;C</div>
                 </div>
                 
                 <div class="sensor-box thermal-section">
                     <h2>Modal Temperature</h2>
                     <div class="sensor-value thermal-value">{thermal_modal:.1f} &deg;C</div>
                 </div>
-            </div>
-            
-            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Modal Canopy Temperature)</h2>
-            <div class="dashboard-container">
-                <div class="sensor-box enhanced-section">
-                    <h2>VPD (Modal + SHT45)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_modal_sht45:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: SHT45 ({sht45_humidity:.1f}%RH)
-                    </div>
-                </div>
                 
-                <div class="sensor-box enhanced-section">
-                    <h2>VPD (Modal + HDC3022)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_modal_hdc3022:.2f} kPa</div>
+                <div class="sensor-box foliage-section">
+                    <h2>Foliage Temperature</h2>
+                    <div class="sensor-value foliage-value">{foliage_temp:.1f} &deg;C</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: HDC3022 ({hdc3022_humidity:.1f}%RH)
-                    </div>
-                </div>
-                
-                <div class="sensor-box enhanced-section">
-                    <h2>VPD (Modal + Average)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_modal_avg:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Modal: {thermal_modal:.1f}&deg;C<br>
-                        Humidity: Average ({avg_humidity:.1f}%RH)
+                        Segmentation: {foliage_ratio:.1%} | Components: {foliage_components}<br>
+                        CUDA: {'Yes' if foliage_cuda_used else 'No'} | Time: {foliage_processing_time:.3f}s
                     </div>
                 </div>
             </div>
             
-            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Average Canopy Temperature)</h2>
+            <h2 style="color: #ff9800; text-align: center; margin: 20px 0;">Enhanced VPD (Foliage Temperature)</h2>
             <div class="dashboard-container">
+                
                 <div class="sensor-box enhanced-section">
-                    <h2>VPD (Avg + SHT45)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_avg_sht45:.2f} kPa</div>
+                    <h2>VPD (Foliage Temperature & SHT45 %RH)</h2>
+                    <div class="sensor-value enhanced-value">{enhanced_vpd_foliage:.2f} kPa</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Avg: {thermal_avg:.1f}&deg;C<br>
+                        Foliage Temp: {foliage_temp:.1f}&deg;C<br>
                         Humidity: SHT45 ({sht45_humidity:.1f}%RH)
                     </div>
                 </div>
                 
-                <div class="sensor-box enhanced-section">
-                    <h2>VPD (Avg + HDC3022)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_avg_hdc3022:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Avg: {thermal_avg:.1f}&deg;C<br>
-                        Humidity: HDC3022 ({hdc3022_humidity:.1f}%RH)
-                    </div>
-                </div>
-                
-                <div class="sensor-box enhanced-section">
-                    <h2>VPD (Avg + Average)</h2>
-                    <div class="sensor-value enhanced-value">{enhanced_vpd_avg_avg:.2f} kPa</div>
-                    <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
-                        Thermal Avg: {thermal_avg:.1f}&deg;C<br>
-                        Humidity: Average ({avg_humidity:.1f}%RH)
-                    </div>
-                </div>
             </div>
             
             <!-- Thermal Image Collection Controls -->
@@ -1104,6 +1142,7 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <title>Jetson Orin Nano - Thermal Image Viewer</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
@@ -1701,6 +1740,7 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
             <title>Jetson Orin Nano - Time Series Plots</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
@@ -1739,6 +1779,47 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                     background-color: #5a8a00;
                 }}
                 
+                .controls {{
+                    background-color: #1e1e1e;
+                    padding: 15px;
+                    border-radius: 5px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                }}
+                
+                .control-group {{
+                    display: inline-block;
+                    margin-right: 20px;
+                }}
+                
+                label {{
+                    color: #e0e0e0;
+                    font-weight: bold;
+                    margin-right: 10px;
+                }}
+                
+                select {{
+                    background-color: #2a2a2a;
+                    color: #e0e0e0;
+                    border: 1px solid #444;
+                    padding: 5px 10px;
+                    border-radius: 3px;
+                }}
+                
+                button {{
+                    background-color: #76b900;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 3px;
+                    cursor: pointer;
+                    margin-left: 10px;
+                }}
+                
+                button:hover {{
+                    background-color: #5a8a00;
+                }}
+                
                 .plot-container {{
                     background-color: #1e1e1e;
                     padding: 20px;
@@ -1755,26 +1836,308 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 <a href="/download/csv" class="nav-button">&#x1F4BE; Download Data</a>
             </div>
             
+            <div class="controls">
+                <h3>📊 Plot Controls</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div class="control-group">
+                        <label for="tempYMode">🌡️ Temperature Y-Axis:</label>
+                        <select id="tempYMode">
+                            <option value="data_range" selected>Data Range + Margin</option>
+                            <option value="auto">Auto Scale</option>
+                            <option value="tight">Tight Fit</option>
+                            <option value="fixed">Fixed Range</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="humidityYMode">💧 Humidity Y-Axis:</label>
+                        <select id="humidityYMode">
+                            <option value="data_range" selected>Data Range + Margin</option>
+                            <option value="auto">Auto Scale</option>
+                            <option value="tight">Tight Fit</option>
+                            <option value="fixed">Fixed Range</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="vpdYMode">📊 VPD Y-Axis:</label>
+                        <select id="vpdYMode">
+                            <option value="data_range" selected>Data Range + Margin</option>
+                            <option value="auto">Auto Scale</option>
+                            <option value="tight">Tight Fit</option>
+                            <option value="fixed">Fixed Range</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="foliageYMode">🌿 Foliage Y-Axis:</label>
+                        <select id="foliageYMode">
+                            <option value="data_range" selected>Data Range + Margin</option>
+                            <option value="auto">Auto Scale</option>
+                            <option value="tight">Tight Fit</option>
+                            <option value="fixed">Fixed Range</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="control-group" style="text-align: center;">
+                    <button onclick="updatePlots()" style="margin-right: 10px;">Update All Plots</button>
+                    <button onclick="loadPlots()" style="margin-right: 10px;">🔄 Refresh</button>
+                    <span id="lastUpdate" style="color: #888; font-size: 12px;">Never updated</span>
+                </div>
+            </div>
+            
             <div class="plot-container">
                 <h2>&#x1F4C8; Time Series Analysis</h2>
-                <p>Time series plotting functionality will be implemented here.</p>
-                <p>This will include:</p>
-                <ul style="text-align: left; max-width: 600px; margin: 0 auto;">
-                    <li>Temperature trends (SHT45, HDC3022, Thermal Camera)</li>
-                    <li>Humidity variations over time</li>
-                    <li>VPD calculations and trends</li>
-                    <li>Enhanced VPD comparisons</li>
-                    <li>Thermal image statistics</li>
-                </ul>
-                <p style="margin-top: 20px; color: #888;">
-                    Coming soon: Interactive plots with matplotlib/plotly integration
-                </p>
+                <div id="plotsContainer">
+                    <p>Loading time series plots...</p>
+                </div>
             </div>
+            
+            <script>
+                let isLoading = false;
+                
+                function loadPlots(tempYMode = 'data_range', humidityYMode = 'data_range', vpdYMode = 'data_range', foliageYMode = 'data_range') {{
+                    if (isLoading) {{
+                        return;
+                    }}
+                    
+                    isLoading = true;
+                    
+                    // Build query string with individual y-axis modes
+                    const params = new URLSearchParams({{
+                        'temperature_y_mode': tempYMode,
+                        'humidity_y_mode': humidityYMode,
+                        'vpd_y_mode': vpdYMode,
+                        'foliage_y_mode': foliageYMode,
+                        '_t': new Date().getTime()
+                    }});
+                    
+                    const url = '/api/plots?' + params.toString();
+                    console.log('Loading plots with individual y-axis modes:', {{tempYMode, humidityYMode, vpdYMode, foliageYMode}});
+                    
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(plots => {{
+                            const container = document.getElementById('plotsContainer');
+                            let html = '';
+                            
+                            if (plots.temperature) {{
+                                html += '<div class="plot-wrapper" style="margin: 20px 0; overflow-x: auto; position: relative;"><h3>🌡️ Temperature Trends (Y-axis: ' + tempYMode + ')</h3><img src="' + plots.temperature + '" style="max-width: none; width: 1200px; height: auto; border-radius: 10px; cursor: crosshair;" alt="Temperature Plot" onmousemove="showTemperatureTooltip(event, this)" onmouseout="hideTooltipDelayed()"><div id="temperature-tooltip" class="plot-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 5px; border-radius: 3px; display: none; pointer-events: none; z-index: 1000;"></div></div>';
+                            }}
+                            
+                            if (plots.humidity) {{
+                                html += '<div class="plot-wrapper" style="margin: 20px 0; overflow-x: auto; position: relative;"><h3>💧 Humidity Trends (Y-axis: ' + humidityYMode + ')</h3><img src="' + plots.humidity + '" style="max-width: none; width: 1200px; height: auto; border-radius: 10px; cursor: crosshair;" alt="Humidity Plot" onmousemove="showHumidityTooltip(event, this)" onmouseout="hideTooltipDelayed()"><div id="humidity-tooltip" class="plot-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 5px; border-radius: 3px; display: none; pointer-events: none; z-index: 1000;"></div></div>';
+                            }}
+                            
+                            if (plots.vpd) {{
+                                html += '<div class="plot-wrapper" style="margin: 20px 0; overflow-x: auto; position: relative;"><h3>📊 VPD Analysis (Y-axis: ' + vpdYMode + ')</h3><img src="' + plots.vpd + '" style="max-width: none; width: 1200px; height: auto; border-radius: 10px; cursor: crosshair;" alt="VPD Plot" onmousemove="showVpdTooltip(event, this)" onmouseout="hideTooltipDelayed()"><div id="vpd-tooltip" class="plot-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 5px; border-radius: 3px; display: none; pointer-events: none; z-index: 1000;"></div></div>';
+                            }}
+                            
+                            if (plots.foliage) {{
+                                html += '<div class="plot-wrapper" style="margin: 20px 0; overflow-x: auto; position: relative;"><h3>🌿 Foliage Temperature Analysis (Y-axis: ' + foliageYMode + ')</h3><img src="' + plots.foliage + '" style="max-width: none; width: 1200px; height: auto; border-radius: 10px; cursor: crosshair;" alt="Foliage Plot" onmousemove="showFoliageTooltip(event, this)" onmouseout="hideTooltipDelayed()"><div id="foliage-tooltip" class="plot-tooltip" style="position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 5px; border-radius: 3px; display: none; pointer-events: none; z-index: 1000;"></div></div>';
+                            }}
+                            
+                            if (html === '') {{
+                                html = '<p style="color: #888;">No plot data available. Please wait for data collection...</p>';
+                            }}
+                            
+                            container.innerHTML = html;
+                            
+                            // Auto-scroll all plot containers to the right to show latest data
+                            setTimeout(() => {{
+                                const plotWrappers = document.querySelectorAll('.plot-wrapper');
+                                plotWrappers.forEach(wrapper => {{
+                                    wrapper.scrollLeft = wrapper.scrollWidth - wrapper.clientWidth;
+                                }});
+                            }}, 100);
+                            
+                            // Update last refresh time
+                            const now = new Date();
+                            document.getElementById('lastUpdate').textContent = 'Last updated: ' + now.toLocaleTimeString();
+                            
+                            isLoading = false;
+                        }})
+                        .catch(error => {{
+                            console.error('Error loading plots:', error);
+                            document.getElementById('plotsContainer').innerHTML = '<p style="color: #f44336;">Error loading plots: ' + error.message + '</p>';
+                            isLoading = false;
+                        }});
+                }}
+                
+                function updatePlots() {{
+                    // Get individual y-axis modes for each plot type
+                    const tempYMode = document.getElementById('tempYMode').value;
+                    const humidityYMode = document.getElementById('humidityYMode').value;
+                    const vpdYMode = document.getElementById('vpdYMode').value;
+                    const foliageYMode = document.getElementById('foliageYMode').value;
+                    
+                    console.log('Update button clicked, modes:', {{tempYMode, humidityYMode, vpdYMode, foliageYMode}});
+                    loadPlots(tempYMode, humidityYMode, vpdYMode, foliageYMode);
+                }}
+                
+                function getCurrentYModes() {{
+                    return {{
+                        tempYMode: document.getElementById('tempYMode').value,
+                        humidityYMode: document.getElementById('humidityYMode').value,
+                        vpdYMode: document.getElementById('vpdYMode').value,
+                        foliageYMode: document.getElementById('foliageYMode').value
+                    }};
+                }}
+                
+                // Load plots on page load
+                document.addEventListener('DOMContentLoaded', function() {{
+                    loadPlots();
+                }});
+                
+                // Refresh plots every 5 seconds with current y-axis modes
+                setInterval(() => {{
+                    if (!isLoading) {{
+                        const modes = getCurrentYModes();
+                        loadPlots(modes.tempYMode, modes.humidityYMode, modes.vpdYMode, modes.foliageYMode);
+                    }}
+                }}, 5000);
+                
+                // Global tooltip timeout variable
+                let tooltipTimeout;
+                
+                // Tooltip functions for interactive hover
+                function showTemperatureTooltip(event, img) {{
+                    clearTimeout(tooltipTimeout);
+                    const tooltip = document.getElementById('temperature-tooltip');
+                    const rect = img.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                    
+                    // Calculate approximate data values based on mouse position
+                    const xPercent = x / rect.width;
+                    const yPercent = (rect.height - y) / rect.height;
+                    
+                    // Mock data calculation (would need actual data mapping for precision)
+                    const timeOffset = xPercent * 2; // 2 hours of data
+                    const now = new Date();
+                    const dataTime = new Date(now.getTime() - (2 - timeOffset) * 60 * 60 * 1000);
+                    const tempValue = (20 + yPercent * 15).toFixed(1); // Mock temperature range 20-35°C
+                    
+                    tooltip.innerHTML = `Time: ${{dataTime.toLocaleTimeString()}}<br>Temperature: ${{tempValue}}°C`;
+                    tooltip.style.left = (event.clientX + 10) + 'px';
+                    tooltip.style.top = (event.clientY - 10) + 'px';
+                    tooltip.style.display = 'block';
+                }}
+                
+                function showHumidityTooltip(event, img) {{
+                    clearTimeout(tooltipTimeout);
+                    const tooltip = document.getElementById('humidity-tooltip');
+                    const rect = img.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                    
+                    const xPercent = x / rect.width;
+                    const yPercent = (rect.height - y) / rect.height;
+                    
+                    const timeOffset = xPercent * 2;
+                    const now = new Date();
+                    const dataTime = new Date(now.getTime() - (2 - timeOffset) * 60 * 60 * 1000);
+                    const humidityValue = (30 + yPercent * 40).toFixed(1); // Mock humidity range 30-70%
+                    
+                    tooltip.innerHTML = `Time: ${{dataTime.toLocaleTimeString()}}<br>Humidity: ${{humidityValue}}%RH`;
+                    tooltip.style.left = (event.clientX + 10) + 'px';
+                    tooltip.style.top = (event.clientY - 10) + 'px';
+                    tooltip.style.display = 'block';
+                }}
+                
+                function showVpdTooltip(event, img) {{
+                    clearTimeout(tooltipTimeout);
+                    const tooltip = document.getElementById('vpd-tooltip');
+                    const rect = img.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                    
+                    const xPercent = x / rect.width;
+                    const yPercent = (rect.height - y) / rect.height;
+                    
+                    const timeOffset = xPercent * 2;
+                    const now = new Date();
+                    const dataTime = new Date(now.getTime() - (2 - timeOffset) * 60 * 60 * 1000);
+                    const vpdValue = (0.5 + yPercent * 1.5).toFixed(2); // Mock VPD range 0.5-2.0 kPa
+                    
+                    tooltip.innerHTML = `Time: ${{dataTime.toLocaleTimeString()}}<br>VPD: ${{vpdValue}} kPa`;
+                    tooltip.style.left = (event.clientX + 10) + 'px';
+                    tooltip.style.top = (event.clientY - 10) + 'px';
+                    tooltip.style.display = 'block';
+                }}
+                
+                function showFoliageTooltip(event, img) {{
+                    clearTimeout(tooltipTimeout);
+                    const tooltip = document.getElementById('foliage-tooltip');
+                    const rect = img.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const y = event.clientY - rect.top;
+                    
+                    const xPercent = x / rect.width;
+                    const yPercent = (rect.height - y) / rect.height;
+                    
+                    const timeOffset = xPercent * 2;
+                    const now = new Date();
+                    const dataTime = new Date(now.getTime() - (2 - timeOffset) * 60 * 60 * 1000);
+                    const foliageValue = (22 + yPercent * 8).toFixed(1); // Mock foliage temp range 22-30°C
+                    
+                    tooltip.innerHTML = `Time: ${{dataTime.toLocaleTimeString()}}<br>Foliage Temp: ${{foliageValue}}°C`;
+                    tooltip.style.left = (event.clientX + 10) + 'px';
+                    tooltip.style.top = (event.clientY - 10) + 'px';
+                    tooltip.style.display = 'block';
+                }}
+                
+                function hideTooltipDelayed() {{
+                    // Hide tooltip after 3 seconds to allow reading during updates
+                    tooltipTimeout = setTimeout(() => {{
+                        const tooltips = document.querySelectorAll('.plot-tooltip');
+                        tooltips.forEach(tooltip => {{
+                            tooltip.style.display = 'none';
+                        }});
+                    }}, 3000);
+                }}
+            </script>
         </body>
         </html>
         """
         
         self.wfile.write(html.encode())
+    
+    def serve_plots_api(self):
+        """Serve time series plots as JSON API"""
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        
+        try:
+            # Parse query parameters for y-axis scaling
+            from urllib.parse import urlparse, parse_qs
+            parsed_url = urlparse(self.path)
+            query_params = parse_qs(parsed_url.query)
+            
+            # Valid y-axis modes
+            valid_modes = ['auto', 'tight', 'fixed', 'data_range']
+            
+            # Parse individual y-axis modes for each plot type
+            y_modes = {}
+            for plot_type in ['temperature', 'humidity', 'vpd', 'foliage']:
+                y_mode = query_params.get(f'{plot_type}_y_mode', ['data_range'])[0]
+                if y_mode not in valid_modes:
+                    y_mode = 'data_range'
+                y_modes[plot_type] = y_mode
+            
+            # Also support legacy single y_mode parameter
+            if 'y_mode' in query_params:
+                legacy_mode = query_params.get('y_mode', ['data_range'])[0]
+                if legacy_mode in valid_modes:
+                    for plot_type in y_modes:
+                        y_modes[plot_type] = legacy_mode
+            
+            plots = self.server_instance.plotter.generate_all_plots(y_modes)
+            json_data = json.dumps(plots, indent=2)
+            self.wfile.write(json_data.encode())
+        except Exception as e:
+            logging.error(f"❌ Plots API error: {e}")
+            error_response = json.dumps({"error": str(e)})
+            self.wfile.write(error_response.encode())
     
     def serve_sensor_data(self):
         """Serve sensor data as JSON"""
