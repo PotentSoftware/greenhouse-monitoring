@@ -14,7 +14,7 @@ import numpy as np
 class StreamlitDataAdapter:
     """Adapts data from Jetson greenhouse server for Streamlit dashboard"""
     
-    def __init__(self, server_url="http://localhost:8082"):
+    def __init__(self, server_url="http://192.168.1.81:8080"):
         self.server_url = server_url
         self.logger = logging.getLogger(__name__)
     
@@ -27,8 +27,8 @@ class StreamlitDataAdapter:
                            sht45_humidity, hdc3022_humidity, air_vpd, enhanced_vpd
         """
         try:
-            # Fetch data from existing server
-            response = requests.get(f"{self.server_url}/api/sensors", timeout=5)
+            # Fetch data from ESP32-S3 sensor server
+            response = requests.get(f"{self.server_url}/sensors", timeout=5)
             
             if response.status_code != 200:
                 self.logger.warning(f"Server returned status {response.status_code}")
@@ -85,50 +85,33 @@ class StreamlitDataAdapter:
         }
         
         try:
-            # Map sensor data from the actual JSON structure
-            if 'sensors' in raw_data:
-                sensors = raw_data['sensors']
-                
-                # Map Feather S3D sensor data
-                if 'feather_s3d' in sensors:
-                    feather = sensors['feather_s3d']
-                    
-                    # SHT45 data
-                    if 'sht45' in feather:
-                        mapped_data['sht45_temp'] = float(feather['sht45']['temperature'])
-                        mapped_data['sht45_humidity'] = float(feather['sht45']['humidity'])
-                    
-                    # HDC3022 data
-                    if 'hdc3022' in feather:
-                        mapped_data['hdc3022_temp'] = float(feather['hdc3022']['temperature'])
-                        mapped_data['hdc3022_humidity'] = float(feather['hdc3022']['humidity'])
-                
-                # Map foliage temperature
-                if 'foliage_temperature' in sensors:
-                    foliage_temp = sensors['foliage_temperature']['temperature']
-                    if foliage_temp > 0:
-                        mapped_data['foliage_temp'] = float(foliage_temp)
-                    else:
-                        mapped_data['foliage_temp'] = np.nan
+            # Map ESP32-S3 sensor data structure:
+            # {"hdc3022": {"status": "ok", "humidity": 52.2, "temperature": 30.6}, 
+            #  "sht45": {"status": "ok", "humidity": 47.6, "temperature": 30.3}, 
+            #  "averages": {"vpd": 2.18, "humidity": 49.9, "temperature": 30.4}}
             
-            # Map VPD data
-            if 'vpd' in raw_data:
-                vpd = raw_data['vpd']
-                
-                # Air VPD
-                if 'air_vpd' in vpd:
-                    mapped_data['air_vpd'] = float(vpd['air_vpd'])
-                
-                # Enhanced VPD
-                if 'enhanced_vpd' in vpd:
-                    mapped_data['enhanced_vpd'] = float(vpd['enhanced_vpd'])
-                else:
-                    # Calculate enhanced VPD if not available
-                    mapped_data['enhanced_vpd'] = self._calculate_enhanced_vpd(
-                        mapped_data['sht45_temp'],
-                        mapped_data['sht45_humidity'],
-                        mapped_data['foliage_temp']
-                    )
+            # SHT45 data
+            if 'sht45' in raw_data and raw_data['sht45'].get('status') == 'ok':
+                mapped_data['sht45_temp'] = float(raw_data['sht45']['temperature'])
+                mapped_data['sht45_humidity'] = float(raw_data['sht45']['humidity'])
+            
+            # HDC3022 data
+            if 'hdc3022' in raw_data and raw_data['hdc3022'].get('status') == 'ok':
+                mapped_data['hdc3022_temp'] = float(raw_data['hdc3022']['temperature'])
+                mapped_data['hdc3022_humidity'] = float(raw_data['hdc3022']['humidity'])
+            
+            # VPD from averages
+            if 'averages' in raw_data and 'vpd' in raw_data['averages']:
+                mapped_data['air_vpd'] = float(raw_data['averages']['vpd'])
+                # Calculate enhanced VPD
+                mapped_data['enhanced_vpd'] = self._calculate_enhanced_vpd(
+                    mapped_data['sht45_temp'],
+                    mapped_data['sht45_humidity'],
+                    mapped_data['sht45_temp']  # Use air temp as foliage temp fallback
+                )
+            
+            # No foliage temperature from ESP32-S3, set to NaN
+            mapped_data['foliage_temp'] = np.nan
             
             # Ensure all values are valid numbers
             for key, value in mapped_data.items():

@@ -697,7 +697,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
             <h2 style="color: #4caf50; text-align: center; margin: 20px 0;">Individual Sensor Readings</h2>
             <div class="dashboard-container">
                 <div class="sensor-box">
-                    <h2>SHT45 Temperature</h2>
+                    <h2>Greenhouse (HDC3022 Sensor) Temperature</h2>
                     <div class="sensor-value">{sht45_temp:.1f} &deg;C</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
                         High-precision sensor
@@ -705,7 +705,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="sensor-box">
-                    <h2>SHT45 Humidity</h2>
+                    <h2>Greenhouse (HDC3022 Sensor) Humidity</h2>
                     <div class="sensor-value">{sht45_humidity:.1f} %RH</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
                         High-precision sensor
@@ -713,7 +713,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="sensor-box">
-                    <h2>HDC3022 Temperature</h2>
+                    <h2>Greenhouse (SHT45 Sensor) Temperature</h2>
                     <div class="sensor-value">{hdc3022_temp:.1f} &deg;C</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
                         High-precision sensor
@@ -721,7 +721,7 @@ class PrecisionSensorHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="sensor-box">
-                    <h2>HDC3022 Humidity</h2>
+                    <h2>Greenhouse (SHT45 Sensor) Humidity</h2>
                     <div class="sensor-value">{hdc3022_humidity:.1f} %RH</div>
                     <div style="color: #888; font-size: 12px; text-align: center; margin-top: 5px;">
                         High-precision sensor

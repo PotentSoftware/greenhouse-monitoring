@@ -1,0 +1,31 @@
+[project]
+name = "thermal-foliage-segmentation"
+version = "0.1.0"
+description = "CUDA-accelerated thermal foliage segmentation for Jetson Orin Nano"
+authors = [
+    {name = "Greenhouse Monitoring Team", email = "team@greenhouse.local"},
+]
+dependencies = [
+    "cupy-cuda12x>=12.0.0",
+    "numpy>=1.21.0",
+    "opencv-python>=4.5.0",
+    "scipy>=1.7.0",
+    "scikit-image>=0.18.0",
+    "matplotlib>=3.3.0",
+    "requests>=2.25.0",
+    "pillow>=8.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=6.0.0",
+    "black>=21.0.0",
+    "flake8>=3.8.0"
+]

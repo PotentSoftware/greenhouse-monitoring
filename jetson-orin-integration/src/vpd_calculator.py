@@ -48,6 +48,9 @@ class VPDCalculator:
             thermal_modal = sensor_data["thermal_camera"].get("modal_temp")
             thermal_median = sensor_data["thermal_camera"].get("median_temp")
             
+            # Get foliage temperature from thermal segmentation
+            foliage_temperature = sensor_data.get("foliage_temperature", {}).get("temperature")
+            
             vpd_results = {}
             
             # Standard Air VPD (using averaged air temperature and humidity)
@@ -65,18 +68,8 @@ class VPDCalculator:
                 vpd_results["canopy_vpd_modal"] = self.calculate_vpd(thermal_modal, air_humidity)
                 vpd_results["canopy_vpd_median"] = self.calculate_vpd(thermal_median, air_humidity)
             
-            # Enhanced VPD with individual sensor humidity
-            vpd_results["enhanced_vpd_max_sht45"] = self.calculate_vpd(thermal_max, sht45_humidity)
-            vpd_results["enhanced_vpd_max_hdc3022"] = self.calculate_vpd(thermal_max, hdc3022_humidity)
-            vpd_results["enhanced_vpd_max_avg"] = self.calculate_vpd(thermal_max, air_humidity)
-            
-            vpd_results["enhanced_vpd_avg_sht45"] = self.calculate_vpd(thermal_avg, sht45_humidity)
-            vpd_results["enhanced_vpd_avg_hdc3022"] = self.calculate_vpd(thermal_avg, hdc3022_humidity)
-            vpd_results["enhanced_vpd_avg_avg"] = self.calculate_vpd(thermal_avg, air_humidity)
-            
-            vpd_results["enhanced_vpd_modal_sht45"] = self.calculate_vpd(thermal_modal, sht45_humidity)
-            vpd_results["enhanced_vpd_modal_hdc3022"] = self.calculate_vpd(thermal_modal, hdc3022_humidity)
-            vpd_results["enhanced_vpd_modal_avg"] = self.calculate_vpd(thermal_modal, air_humidity)
+            # Enhanced VPD with foliage temperature and SHT45 humidity
+            vpd_results["enhanced_vpd_foliage"] = self.calculate_vpd(foliage_temperature, sht45_humidity)
             
             # Thermal VPD (pure thermal calculation)
             if thermal_avg is not None and air_humidity is not None:

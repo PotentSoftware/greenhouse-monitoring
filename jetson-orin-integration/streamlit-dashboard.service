@@ -1,5 +1,5 @@
 [Unit]
-Description=Jetson Greenhouse Monitoring Dashboard
+Description=Streamlit Greenhouse Dashboard
 After=network.target
 Wants=network-online.target
 After=network-online.target
@@ -10,17 +10,16 @@ User=lionel
 Group=lionel
 WorkingDirectory=/home/lionel/jetson-greenhouse
 Environment=PATH=/home/lionel/jetson-greenhouse/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=PYTHONPATH=/home/lionel/jetson-greenhouse/src
-ExecStart=/home/lionel/jetson-greenhouse/venv/bin/python /home/lionel/jetson-greenhouse/src/jetson_greenhouse_server.py
+ExecStart=/home/lionel/jetson-greenhouse/venv/bin/streamlit run streamlit_dashboard.py --server.port 8083 --server.address 0.0.0.0 --server.headless true
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=jetson-greenhouse
+SyslogIdentifier=streamlit-dashboard
 
 # Resource limits
-MemoryMax=2G
-CPUQuota=200%
+MemoryMax=1G
+CPUQuota=100%
 
 # Security settings
 NoNewPrivileges=true
