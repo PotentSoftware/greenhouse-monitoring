@@ -36,10 +36,13 @@ Sensors → Jetson Server (8083) → Nginx Proxy (8082) → Dashboard/API
 ## Features Implemented
 
 ### Dashboard Features
+- ✅ Streamlit-based modern web interface
+- ✅ Simplified UI with removed Time Range dropdown and Auto-refresh checkbox
+- ✅ Always-visible "Last Updated" timestamp display
+- ✅ Fixed 5-second automatic refresh interval
+- ✅ Manual "Refresh Now" button in sidebar
+- ✅ Enhanced Time Series Plots with granular time ranges (15min, 30min, 2hr)
 - ✅ Interactive Plotly charts with hover tooltips
-- ✅ 5-second vertical grid lines for precise data correlation
-- ✅ Hover mode set to 'closest' - snaps to actual data points
-- ✅ Real-time auto-refresh every 5 seconds
 - ✅ Dark/light theme support
 - ✅ Connection status indicators
 - ✅ Temperature, Humidity, and VPD monitoring

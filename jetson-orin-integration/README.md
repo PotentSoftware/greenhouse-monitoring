@@ -99,7 +99,8 @@ python src/jetson_greenhouse_server.py
 ## Access Points
 
 ### Web Interfaces
-- **Jetson Dashboard**: http://192.168.1.75:8082/
+- **Jetson Dashboard**: http://192.168.1.75:8082/ (Streamlit-based with simplified UI)
+- **Time Series Plots**: http://192.168.1.75:8082/Time_Series_Plots (Enhanced time ranges)
 - **Interactive Thermal Viewer**: http://192.168.1.75:8082/thermal_viewer
 - **BeaglePlay Dashboard**: http://192.168.1.203:8080/ (concurrent)
 - **JSON API**: http://192.168.1.75:8082/api/sensors
@@ -139,6 +140,13 @@ DATA_DIR = "/home/lionel/greenhouse-data"
 ```
 
 ## Features
+
+### Dashboard Interface
+- **Streamlit-based UI**: Modern web interface with automatic 5-second refresh
+- **Simplified Controls**: Removed redundant Time Range dropdown and Auto-refresh checkbox
+- **Last Updated Timestamp**: Always-visible current date and time display
+- **Manual Refresh**: Retained "Refresh Now" button for immediate updates
+- **Enhanced Time Series**: Granular time range options (15min, 30min, 2hr) for detailed analysis
 
 ### Sensor Integration
 - **Feather S3[D]**: HTTP API communication for dual precision sensors

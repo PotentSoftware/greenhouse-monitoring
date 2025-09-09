@@ -1,5 +1,53 @@
 # Greenhouse Monitoring System - Changelog
 
+## [3.2.0] - 2025-09-09 - 🎛️ Jetson Dashboard UI Simplification & Enhanced Time Series
+
+### 🎨 **Streamlit Dashboard UI Improvements**
+
+#### ✅ **Main Dashboard Simplification**
+- **Removed Time Range Dropdown**: Eliminated redundant time range selector from main page sidebar
+- **Removed Auto-refresh Checkbox**: Auto-refresh now runs automatically every 5 seconds (no user toggle)
+- **Added Last Updated Timestamp**: Displays current date and time prominently on main page
+- **Retained Refresh Now Button**: Manual refresh button preserved in sidebar for immediate updates
+- **Fixed Auto-refresh Interval**: Enforced 5-second refresh cycle for consistent real-time updates
+
+#### 📊 **Enhanced Time Series Plots Page**
+- **Added Granular Time Ranges**: New options for detailed analysis
+  - "Last 15 minutes" (0.25 hours)
+  - "Last 30 minutes" (0.5 hours)  
+  - "Last 2 Hours" (2 hours)
+- **Preserved Existing Options**: Maintained "Last Hour", "Last 6 Hours", "Last 24 Hours", "Last 7 Days"
+- **Improved User Experience**: More precise time range selection for detailed monitoring
+
+#### 🔧 **Technical Implementation**
+- **Streamlit Dashboard Updates**: Modified `/home/lionel/jetson-greenhouse/streamlit_dashboard.py`
+- **Fixed Time Range Logic**: Set default time range to "2 hours" for current sensor values
+- **Always-enabled Auto-refresh**: Removed conditional auto-refresh logic
+- **Enhanced Time Series Page**: Updated `pages/Time Series Plots.py` with new time ranges
+
+#### 🌐 **Deployment & Verification**
+- **Production Deployment**: Successfully deployed to Jetson Orin Nano (192.168.1.75:8082)
+- **Service Management**: Restarted `jetson-streamlit.service` to apply changes
+- **Remote Deployment**: Used SSH with `sshpass` for automated file transfer and service restart
+- **Verification**: Confirmed changes via HTTP requests and browser preview
+
+### 🗂️ **Files Modified**
+- **UPDATED**: `jetson-orin-integration/src/jetson_greenhouse_server.py` - HTTP server dashboard updates
+- **UPDATED**: `jetson-orin-integration/pages/Time Series Plots.py` - Added new time range options
+- **DEPLOYED**: Updated Streamlit dashboard on Jetson with simplified UI
+
+### 🎯 **User Benefits**
+1. **Simplified Interface**: Cleaner main dashboard without redundant controls
+2. **Consistent Auto-refresh**: Reliable 5-second updates without user intervention
+3. **Enhanced Time Analysis**: More granular time range options for detailed monitoring
+4. **Better User Experience**: Streamlined workflow with essential controls only
+5. **Real-time Awareness**: Always-visible "Last Updated" timestamp
+
+### 🏆 **Achievement Summary**
+**JETSON DASHBOARD STATUS**: 🟢 **UI SIMPLIFIED - PRODUCTION READY**
+
+The Jetson Orin Nano greenhouse monitoring dashboard now provides a cleaner, more focused user experience with automatic refresh, simplified controls, and enhanced time series analysis capabilities.
+
 ## [3.1.0] - 2025-08-17 - 🔬 Jetson Thermal Image Analysis & UI Stability Fixes
 
 ### 🚀 **Jetson Orin Nano Thermal Analysis System**

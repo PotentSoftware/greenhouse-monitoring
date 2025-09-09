@@ -223,27 +223,23 @@ class JetsonGreenhouseServer:
             # Ensure data directory exists
             os.makedirs(config.DATA_DIR, exist_ok=True)
             
-            # CSV logging
+            # CSV logging - only 8 essential columns
             csv_file = os.path.join(config.DATA_DIR, config.CSV_FILE)
             csv_row = [
                 timestamp,
                 sht45_temp, sht45_humidity,
                 hdc3022_temp, hdc3022_humidity,
-                avg_temp, avg_humidity,
-                thermal_min, thermal_max, thermal_avg, thermal_modal,
-                air_vpd, enhanced_vpd, canopy_vpd_avg, thermal_vpd,
-                foliage_temperature, segmentation_ratio, enhanced_vpd_foliage
+                foliage_temperature,
+                air_vpd, enhanced_vpd
             ]
             
             # Write CSV header if file doesn't exist
             header = [
                 "timestamp",
                 "sht45_temp", "sht45_humidity",
-                "hdc3022_temp", "hdc3022_humidity", 
-                "avg_temp", "avg_humidity",
-                "thermal_min", "thermal_max", "thermal_avg", "thermal_modal",
-                "air_vpd", "enhanced_vpd", "canopy_vpd_avg", "thermal_vpd",
-                "foliage_temperature", "segmentation_ratio", "enhanced_vpd_foliage"
+                "hdc3022_temp", "hdc3022_humidity",
+                "foliage_temperature",
+                "air_vpd", "enhanced_vpd"
             ]
             if not os.path.exists(csv_file):
                 with open(csv_file, 'w') as f:
@@ -599,7 +595,7 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                     }}
                 }}
                 
-                // Auto-refresh every {config.AUTO_REFRESH_INTERVAL} seconds
+                // Auto-refresh every 5 seconds
                 // Skip refresh if user is interacting with analysis controls
                 setInterval(function() {{
                     const analysisInProgress = document.getElementById('analyzeBtn').innerHTML.includes('Processing') || 
@@ -611,7 +607,7 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                     if (!analysisInProgress && !dropdownFocused && !viewResultsActive) {{
                         refreshData();
                     }}
-                }}, {config.AUTO_REFRESH_INTERVAL * 1000});
+                }}, 5000);
                 
                 // Thermal Image Collection Functions
                 function startThermalCollection() {{
@@ -933,7 +929,10 @@ class JetsonHTTPHandler(BaseHTTPRequestHandler):
                 <div style="margin-top: 10px; font-size: 14px;">
                     Feather S3[D]: <span class="{'status-connected' if feather_status == 'connected' else 'status-disconnected'}">{feather_status}</span> | 
                     Sensors: {sensor_count}/2 | 
-                    Thermal Camera: <span class="{'status-connected' if thermal_status == 'connected' else 'status-disconnected'}">{thermal_status}</span>
+                    Thermal: <span class="{'status-connected' if thermal_status == 'connected' else 'status-disconnected'}">{thermal_status}</span>
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <button onclick="refreshData()" style="background-color: #4caf50; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.3s;" onmouseover="this.style.backgroundColor='#45a049'" onmouseout="this.style.backgroundColor='#4caf50'">&#x1F504; Refresh Now</button>
                 </div>
                 <div style="margin-top: 5px; font-size: 12px; color: #888;">
                     Running independently on {config.JETSON_IP}:{config.JETSON_PORT} | Concurrent with BeaglePlay

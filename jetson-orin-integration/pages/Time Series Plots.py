@@ -13,6 +13,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.streamlit_data_adapter import StreamlitDataAdapter
 import requests
+import csv
+import os
 
 st.set_page_config(
     page_title="Time Series Plots",
@@ -21,142 +23,142 @@ st.set_page_config(
 )
 
 # Initialize components
-if 'sensor_collector' not in st.session_state:
-    st.session_state.sensor_collector = StreamlitDataAdapter()
+if 'data_adapter' not in st.session_state:
+    st.session_state.data_adapter = StreamlitDataAdapter()
 
 st.title("📈 Time Series Plots")
 
 # Time range selector
 time_range = st.selectbox(
     "Select Time Range",
-    ["Last Hour", "Last 6 Hours", "Last 24 Hours", "Last 7 Days"],
-    index=1
+    ["Last 15 minutes", "Last 30 minutes", "Last Hour", "Last 2 Hours", "Last 6 Hours", "Last 24 Hours", "Last 7 Days"],
+    index=4
 )
 
 hours_map = {
+    "Last 15 minutes": 0.25,
+    "Last 30 minutes": 0.5,
     "Last Hour": 1,
+    "Last 2 Hours": 2,
     "Last 6 Hours": 6,
     "Last 24 Hours": 24,
     "Last 7 Days": 168
 }
 
-# Load data
-@st.cache_data(ttl=60)
-def load_plot_data(hours):
+def load_historical_data(hours):
+    """Load historical data from CSV log file with robust parsing"""
     try:
-        # Try to get real sensor data from ESP32-S3
-        response = requests.get("http://192.168.1.81:8080/sensors", timeout=5)
-        if response.status_code == 200:
-            current_data = response.json()
+        # Define CSV file path
+        csv_file = "/home/lionel/jetson-greenhouse/data/jetson_sensor_data.csv"
+        
+        if not os.path.exists(csv_file):
+            st.warning("⚠️ **NO CSV LOG FILE FOUND**")
+            return None
+        
+        # Read CSV with flexible parsing to handle inconsistent column counts
+        rows = []
+        with open(csv_file, 'r') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if not header:
+                st.warning("⚠️ **EMPTY CSV FILE**")
+                return None
+                
+            for line_num, row in enumerate(reader, 2):
+                if len(row) >= 8:  # Ensure minimum required columns
+                    # Extract the 8 essential columns in correct order
+                    # Handle both 8-column (cleaned) and 17+ column (new logging) formats
+                    if len(row) == 8:
+                        # Original cleaned format: timestamp,sht45_temp,sht45_humidity,hdc3022_temp,hdc3022_humidity,foliage_temperature,air_vpd,enhanced_vpd
+                        normalized_row = row
+                    else:
+                        # New logging format with extra columns - extract correct positions
+                        # Based on recent data: timestamp,sht45_temp,sht45_humidity,hdc3022_temp,hdc3022_humidity,temp3,humidity3,temp4,temp5,temp6,temp7,vpd1,vpd2,vpd3,vpd4,unknown1,unknown2,foliage_temp
+                        normalized_row = [
+                            row[0],  # timestamp
+                            row[1],  # sht45_temp
+                            row[2],  # sht45_humidity  
+                            row[3],  # hdc3022_temp
+                            row[4],  # hdc3022_humidity
+                            row[-1] if len(row) > 16 else row[5],  # foliage_temperature (last column in new format)
+                            row[11] if len(row) > 11 else row[6],  # air_vpd (position 11 in new format)
+                            row[12] if len(row) > 12 else row[7]   # enhanced_vpd (position 12 in new format)
+                        ]
+                    rows.append(normalized_row)
+                else:
+                    # Skip malformed rows
+                    continue
+        
+        if not rows:
+            st.warning("⚠️ **NO VALID DATA ROWS IN CSV**")
+            return None
             
-            # Generate time series based on current real readings
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=hours)
-            timestamps = pd.date_range(start=start_time, end=end_time, freq='5min')
+        # Create DataFrame with consistent column structure
+        columns = ['timestamp', 'sht45_temp', 'sht45_humidity', 'hdc3022_temp', 
+                  'hdc3022_humidity', 'foliage_temperature', 'air_vpd', 'enhanced_vpd']
+        
+        df = pd.DataFrame(rows, columns=columns)
+        
+        if df.empty:
+            return None
             
-            # Use real current values as base
-            sht45_temp_base = current_data.get('sht45', {}).get('temperature', 22.5)
-            hdc3022_temp_base = current_data.get('hdc3022', {}).get('temperature', 22.3)
-            sht45_humidity_base = current_data.get('sht45', {}).get('humidity', 45.0)
-            hdc3022_humidity_base = current_data.get('hdc3022', {}).get('humidity', 44.8)
-            vpd_base = current_data.get('averages', {}).get('vpd', 1.2)
+        # Convert timestamp column
+        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        
+        # Remove rows with invalid timestamps
+        df = df.dropna(subset=['timestamp'])
+        
+        if df.empty:
+            st.warning("⚠️ **NO VALID TIMESTAMPS IN CSV**")
+            return None
+        
+        # Convert numeric columns
+        numeric_columns = [col for col in df.columns if col != 'timestamp']
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        
+        # Filter by time range
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        df = df[df['timestamp'] >= start_time]
+        
+        if df.empty:
+            st.warning("⚠️ **NO HISTORICAL DATA** - No data in selected time range")
+            return None
+        
+        # Get current real-time values for status display
+        esp32_data = {}
             
-            # Generate realistic variations around current readings
-            num_points = len(timestamps)
-            np.random.seed(42)
+        # Try ESP32-S3 sensor data for status
+        try:
+            esp32_response = requests.get("http://192.168.1.81:8080/sensors", timeout=3)
+            if esp32_response.status_code == 200:
+                esp32_data = esp32_response.json()
+        except:
+            pass
+        
+        current_time = datetime.now().strftime("%H:%M:%S")
             
-            # Temperature variations
-            temp_noise = np.random.normal(0, 0.5, num_points)
-            sht45_temps = sht45_temp_base + temp_noise
-            hdc3022_temps = hdc3022_temp_base + np.random.normal(0, 0.3, num_points)
-            
-            # Humidity variations
-            humidity_noise = np.random.normal(0, 2, num_points)
-            sht45_humidity = sht45_humidity_base + humidity_noise
-            hdc3022_humidity = hdc3022_humidity_base + np.random.normal(0, 1.5, num_points)
-            
-            # VPD variations
-            vpd_noise = np.random.normal(0, 0.1, num_points)
-            air_vpd = vpd_base + vpd_noise
-            enhanced_vpd = air_vpd * 0.95 + np.random.normal(0, 0.05, num_points)
-            
-            # Ensure realistic bounds
-            sht45_temps = np.clip(sht45_temps, sht45_temp_base - 3, sht45_temp_base + 3)
-            hdc3022_temps = np.clip(hdc3022_temps, hdc3022_temp_base - 3, hdc3022_temp_base + 3)
-            sht45_humidity = np.clip(sht45_humidity, max(20, sht45_humidity_base - 10), min(80, sht45_humidity_base + 10))
-            hdc3022_humidity = np.clip(hdc3022_humidity, max(20, hdc3022_humidity_base - 10), min(80, hdc3022_humidity_base + 10))
-            air_vpd = np.clip(air_vpd, max(0.1, vpd_base - 0.5), vpd_base + 0.5)
-            enhanced_vpd = np.clip(enhanced_vpd, max(0.1, vpd_base - 0.4), vpd_base + 0.4)
-            
-            data = {
-                'timestamp': timestamps,
-                'sht45_temp': sht45_temps,
-                'hdc3022_temp': hdc3022_temps,
-                'sht45_humidity': sht45_humidity,
-                'hdc3022_humidity': hdc3022_humidity,
-                'air_vpd': air_vpd,
-                'enhanced_vpd': enhanced_vpd
-            }
-            
-            st.success(f"📊 Real sensor data from ESP32-S3 (Current: {sht45_temp_base:.1f}°C, {sht45_humidity_base:.1f}%)")
-            return pd.DataFrame(data)
-            
+        if esp32_data:
+            esp32_status = f"ESP32-S3: {esp32_data.get('sht45', {}).get('temperature', 0):.1f}°C, {esp32_data.get('sht45', {}).get('humidity', 0):.1f}%"
+        else:
+            esp32_status = "ESP32-S3: Offline"
+        
+        # Always show historical data status
+        data_points = len(df)
+        time_span = df['timestamp'].max() - df['timestamp'].min()
+        st.success(f"📊 **HISTORICAL DATA** - {data_points} points over {time_span} | Current: {esp32_status} | Last update: {current_time}")
+        
+        return df
+        
     except Exception as e:
-        st.warning(f"⚠️ Could not connect to ESP32-S3: {str(e)}. Using mock data.")
-    
-    # Fallback to mock data
-    return get_mock_sensor_data(hours)
+        st.error(f"❌ **ERROR LOADING HISTORICAL DATA**: {str(e)}")
+        return None
 
-def get_mock_sensor_data(hours):
-    """Generate realistic mock sensor data with variations"""
-    end_time = datetime.now()
-    start_time = end_time - timedelta(hours=hours)
-    timestamps = pd.date_range(start=start_time, end=end_time, freq='5min')
-    
-    # Generate realistic sensor variations
-    np.random.seed(42)  # For reproducible data
-    num_points = len(timestamps)
-    
-    # Temperature variations (realistic greenhouse patterns)
-    base_temp = 22.5
-    temp_trend = np.linspace(0, 2, num_points)  # Gradual warming
-    temp_noise = np.random.normal(0, 0.8, num_points)
-    sht45_temps = base_temp + temp_trend + temp_noise
-    hdc3022_temps = sht45_temps + np.random.normal(0, 0.3, num_points)  # Correlated but slightly different
-    
-    # Humidity variations (inverse correlation with temperature)
-    base_humidity = 45.0
-    humidity_trend = np.linspace(0, -5, num_points)  # Decreasing as temp rises
-    humidity_noise = np.random.normal(0, 3, num_points)
-    sht45_humidity = base_humidity + humidity_trend + humidity_noise
-    hdc3022_humidity = sht45_humidity + np.random.normal(0, 1.5, num_points)
-    
-    # VPD calculations (realistic relationship to temp/humidity)
-    air_vpd = 0.8 + (sht45_temps - 20) * 0.1 + np.random.normal(0, 0.05, num_points)
-    enhanced_vpd = air_vpd * 0.9 + np.random.normal(0, 0.03, num_points)
-    
-    # Ensure realistic bounds
-    sht45_temps = np.clip(sht45_temps, 18, 28)
-    hdc3022_temps = np.clip(hdc3022_temps, 18, 28)
-    sht45_humidity = np.clip(sht45_humidity, 30, 70)
-    hdc3022_humidity = np.clip(hdc3022_humidity, 30, 70)
-    air_vpd = np.clip(air_vpd, 0.5, 2.0)
-    enhanced_vpd = np.clip(enhanced_vpd, 0.4, 1.8)
-    
-    data = {
-        'timestamp': timestamps,
-        'sht45_temp': sht45_temps,
-        'hdc3022_temp': hdc3022_temps,
-        'sht45_humidity': sht45_humidity,
-        'hdc3022_humidity': hdc3022_humidity,
-        'air_vpd': air_vpd,
-        'enhanced_vpd': enhanced_vpd
-    }
-    return pd.DataFrame(data)
 
-df = load_plot_data(hours_map[time_range])
+df = load_historical_data(hours_map[time_range])
 
-if not df.empty:
+if df is not None and not df.empty:
     # Temperature plot
     st.subheader("🌡️ Temperature Monitoring")
     temp_fig = make_subplots(specs=[[{"secondary_y": False}]])
